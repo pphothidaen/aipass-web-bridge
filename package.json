@@ -1,0 +1,23 @@
+{
+  "name": "aipass-dev-suite",
+  "private": true,
+  "version": "0.3.0",
+  "workspaces": [
+    "packages/shared",
+    "packages/vscode-extension"
+  ],
+  "scripts": {
+    "test": "node --test packages/vscode-extension/scripts/test-agent-fallback.mjs packages/vscode-extension/scripts/test-crud-unittest.mjs packages/checks-runner/run-check.test.js",
+    "test:core": "npm test --prefix packages/core",
+    "build:shared": "npm run build -w packages/shared",
+    "build:ext": "npm run build -w packages/vscode-extension",
+    "build": "npm run build:shared && npm run build:ext",
+    "gemini": "bash scripts/gemini",
+    "package": "npm run build:shared && npm run package -w packages/vscode-extension",
+    "release": "node scripts/release.mjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.63.0",
+    "playwright": "^1.63.0"
+  }
+}

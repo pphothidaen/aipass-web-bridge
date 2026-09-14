@@ -1,0 +1,12 @@
+# Secretary runtime logs
+logs/
+
+# Node
+node_modules/
+
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc

@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LLM Tradeoff Matrix — M4 MacBook Pro 16GB</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, 'SF Pro Display', system-ui, sans-serif; padding: 24px; max-width: 1100px; margin: 0 auto; color: var(--foreground); background: var(--card); }
+
+  h1 { font-size: 1.4rem; margin-bottom: 4px; font-weight: 700; }
+  .subtitle { font-size: 0.82rem; color: var(--muted-foreground); margin-bottom: 20px; }
+
+  /* Score bars */
+  .score-bar { display: flex; align-items: center; gap: 8px; }
+  .score-track { flex: 1; height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; }
+  .score-fill { height: 100%; border-radius: 4px; transition: width .4s; }
+
+  /* Cards layout */
+  .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 24px; }
+
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; position: relative; transition: transform .15s, box-shadow .15s; }
+  .card:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,.08); }
+  .card.recommended { border-color: var(--accent); }
+  .card.recommended::after { content: "★ แนะนำ"; position: absolute; top: -10px; right: 12px; background: var(--accent); color: #fff; font-size: .7rem; padding: 2px 10px; border-radius: 10px; font-weight: 600; }
+
+  .card h2 { font-size: 1.05rem; margin-bottom: 2px; }
+  .card .params { font-size: .75rem; color: var(--muted-foreground); margin-bottom: 14px; }
+
+  .metric { margin-bottom: 12px; }
+  .metric-label { display: flex; justify-content: space-between; font-size: .78rem; margin-bottom: 4px; }
+  .metric-label span:last-child { font-weight: 600; }
+
+  /* Verdict */
+  .verdict { font-size: .8rem; margin-top: 14px; padding: 10px 12px; background: rgba(127,127,127,.08); border-radius: 8px; line-height: 1.4; }
+
+  /* Summary table */
+  .summary { width: 100%; border-collapse: collapse; font-size: .82rem; margin-top: 8px; }
+  .summary th, .summary td { padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--border); }
+  .summary th { font-weight: 600; background: rgba(127,127,127,.06); }
+  .summary td:nth-child(2), .summary td:nth-child(3), .summary td:nth-child(4) { text-align: center; }
+
+  .tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: .7rem; font-weight: 600; }
+  .tag-green { background: #22c55e22; color: #16a34a; }
+  .tag-yellow { background: #eab30822; color: #ca8a04; }
+  .tag-red { background: #ef444422; color: #dc2626; }
+
+  .footer { margin-top: 20px; font-size: .75rem; color: var(--muted-foreground); line-height: 1.5; }
+</style>
+</head>
+<body>
+
+<h1>⚖️ Tradeoff Matrix</h1>
+<p class="subtitle">Apple M4 MacBook Pro · 16GB Unified Memory · ดิสก์เหลือ 17GB · Q4_K_M quantization</p>
+
+<div class="cards">
+
+  <!-- QWEN 8B -->
+  <div class="card recommended">
+    <h2>Qwen3-8B</h2>
+    <p class="params">Q4_K_M · ~4.9 GB</p>
+
+    <div class="metric">
+      <div class="metric-label"><span>🇹🇭 ภาษาไทย</span><span>ดีมาก</span></div>
+      <div class="score-bar"><div class="score-track"><div class="score-fill" style="width:88%; background:linear-gradient(90deg,#22c55e,#4ade80)"></div></div></div>
+    </div>
+
+    <div class="metric">
+      <div class="metric-label"><span>💻 เขียนโค้ด</span><span>ดี</span></div>
+      <div class="score-bar"><div class="score-track"><div class="score-fill" style="width:78%; background:linear-gradient(90deg,#22c55e,#4ade80)"></div></div></div>
+    </div>
+
+    <div class="metric">
+      <div class="metric-label"><span>🧠 ใช้เหตุผล</span><span>ดี</span></div>
+      <div class="score-bar"><div class="score-track"><div class="score-fill" style="width:75%; background:linear-gradient(90deg,#22c55e,#4ade80)"></div></div></div>
+    </div>
+
+    <div class="metric">
+      <div class="metric-label"><span>⚡ ความเร็ว</span><span>~85 t/s</span></div>
+      <div class="score-bar"><div class="score-track"><div class="score-fill" style="width:92%; background:linear-gradient(90deg,#22c55e,#4ade80)"></div></div></div>
+    </div>
+
+    <div class="metric">
+      <div class="metric-label"><span>🧠 RAM ใช้</span><span>~6 GB</span></div>
+      <div class="score-bar"><div class="score-track"><div class="score-fill" style="width:38%; background:linear-gradient(90deg,#22c55e,#86efac)"></div></div></div>
+    </div>
+
+    <div class="metric">
+      <div class="metric-label"><span>📦 ดิสก์</span><span>~5 GB</span></div>
+      <div class="score-bar"><div class="score-track"><div class="score-fill" style="width:30%; background:linear-gradient(90deg,#22c55e,#86efac)"></div></div></div>
+    </div>
+
+    <div class="metric">
+      <div class="metric-label"><span>🔧 Tool Calling</span><span>✅ ทำได้</span></div>
+      <div class="score-bar"><div class="score-track"><div class="score-fill" style="width:85%; background:linear-gradient(90deg,#22c55e,#4ade80)"></div></div></div>
+    </div>
+
+    <div class="verdict">✅ <strong>ดีที่สุดสำหรับ 16GB</strong><br>ลื่น ประหยัด ภาษาไทยแม่น รันแชทได้ตลอดวันโดยไม่แคม</div>
+  </div>
+
+  <!-- QWEN 14B -->
+  <div class="card">
+    <h2>Qwen3-14B</h2>
+    <p class="params">Q4_K_M · ~8.5 GB</p>
+
+    <div class="metric">
+      <div class="metric-label"><span>🇹🇭 ภาษาไทย</span><span>ดีที่สุด</span></div>
+      <div class="score-bar"><div class="score-track"><div class="score-fill" style="width:95%; background:linear-gradient(90deg,#22c55e,#4ade80)"></div></div></div>
+    </div>
+
+    <div class="metric">
+      <div class="metric-label"><span>💻 เขียนโค้ด</span><span>ดีมาก</span></div>
+      <div class="score-bar"><div class="score-track"><div class="score-fill" style="width:88%; background:linear-gradient(90deg,#22c55e,#4ade80)"></div></div></div>
+    </div>
+
+    <div class="metric">
+      <div class="metric-label"><span>🧠 ใช้เหตุผล</span><span>ดีมาก</span></div>
+      <div class="score-bar"><div class="score-track"><div class="score-fill" style="width:87%; background:linear-gradient(90deg,#22c55e,#4ade80)"></div></div></div>
+    </div>
+
+    <div class="metric">
+      <div class="metric-label"><span>⚡ ความเร็ว</span><span>~45 t/s</span></div>
+      <div class="score-bar"><div class="score-track"><div class="score-fill" style="width:55%; background:linear-gradient(90deg,#eab308,#facc15)"></div></div></div>
+    </div>
+
+    <div class="metric">
+      <div class="metric-label"><span>🧠 RAM ใช้</span><span>~11 GB</span></div>
+      <div class="score-bar"><div class="score-track"><div class="score-fill" style="width:70%; background:linear-gradient(90deg,#f97316,#fb923c)"></div></div></div>
+    </div>
+
+    <div class="metric">
+      <div class="metric-label"><span>📦 ดิสก์</span><span>~9 GB</span></div>
+      <div class="score-bar"><div class="score-track"><div class="score-fill" style="width:55%; background:linear-gradient(90deg,#eab308,#facc15)"></div></div></div>
+    </div>
+
+    <div class="metric">
+      <div class="metric-label"><span>🔧 Tool Calling</span><span>✅ ทำได้</span></div>
+      <div class="score-bar"><div class="score-track"><div class="score-fill" style="width:88%; background:linear-gradient(90deg,#22c55e,#4ade80)"></div></div></div>
+    </div>
+
+    <div class="verdict">⚠️ <strong>แม่นกว่า แติช้ากว่า</strong><br>RAM เหลือ ~5GB ระวัง swap ถ้าเปิดอย่างอื่นพร้อมกัน ดิสก์เหลือแค่ 8GB</div>
+  </div>
+
+  <!-- LLAMA 8B -->
+  <div class="card">
+    <h2>Llama-3.1-8B</h2>
+    <p class="params">Q4_K_M · ~4.9 GB</p>
+
+    <div class="metric">
+      <div class="metric-label"><span>🇹🇭 ภาษาไทย</span><span>พอใช้</span></div>
+      <div class="score-bar"><div class="score-track"><div class="score-fill" style="width:55%; background:linear-gradient(90deg,#eab308,#facc15)"></div></div></div>
+    </div>
+
+    <div class="metric">
+      <div class="metric-label"><span>💻 เขียนโค้ด</span><span>ดีมาก</span></div>
+      <div class="score-bar"><div class="score-track"><div class="score-fill" style="width:85%; background:linear-gradient(90deg,#22c55e,#4ade80)"></div></div></div>
+    </div>
+
+    <div class="metric">
+      <div class="metric-label"><span>🧠 ใช้เหตุผล</span><span>ดี</span></div>
+      <div class="score-bar"><div class="score-track"><div class="score-fill" style="width:76%; background:linear-gradient(90deg,#22c55e,#4ade80)"></div></div></div>
+    </div>
+
+    <div class="metric">
+      <div class="metric-label"><span>⚡ ความเร็ว</span><span>~82 t/s</span></div>
+      <div class="score-bar"><div class="score-track"><div class="score-fill" style="width:90%; background:linear-gradient(90deg,#22c55e,#4ade80)"></div></div></div>
+    </div>
+
+    <div class="metric">
+      <div class="metric-label"><span>🧠 RAM ใช้</span><span>~6 GB</span></div>
+      <div class="score-bar"><div class="score-track"><div class="score-fill" style="width:38%; background:linear-gradient(90deg,#22c55e,#86efac)"></div></div></div>
+    </div>
+
+    <div class="metric">
+      <div class="metric-label"><span>📦 ดิสก์</span><span>~5 GB</span></div>
+      <div class="score-bar"><div class="score-track"><div class="score-fill" style="width:30%; background:linear-gradient(90deg,#22c55e,#86efac)"></div></div></div>
+    </div>
+
+    <div class="metric">
+      <div class="metric-label"><span>🔧 Tool Calling</span><span>✅ แม่น</span></div>
+      <div class="score-bar"><div class="score-track"><div class="score-fill" style="width:92%; background:linear-gradient(90deg,#22c55e,#4ade80)"></div></div></div>
+    </div>
+
+    <div class="verdict">🇬🇧 <strong>ภาษาอังกฤษเฉพาะทาง</strong><br>โค้ดและ tool calling แม่น แต่ภาษาไทยอ่อนกว่า Qwen มาก ใช้แทน Qwen-8B ได้ถ้าทำงานอังกฤษเป็นหลัก</div>
+  </div>
+
+</div>
+
+<!-- COMPARISON TABLE -->
+<h2 style="font-size:1rem; margin-bottom:10px;">📊 เปรียบเทียบตัวเลข</h2>
+<table class="summary">
+  <thead>
+    <tr>
+      <th>เกณฑ์</th>
+      <th>Qwen3-8B</th>
+      <th>Qwen3-14B</th>
+      <th>Llama-3.1-8B</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr><td>Parameters</td><td>8.2B</td><td>14.8B</td><td>8.0B</td></tr>
+    <tr><td>Q4_K_M ดิสก์</td><td>~4.9 GB</td><td>~8.5 GB</td><td>~4.9 GB</td></tr>
+    <tr><td>RAM ใช้จริง</td><td>~6 GB</td><td>~11 GB</td><td>~6 GB</td></tr>
+    <tr><td>Tokens/sec (est.)</td><td>~85</td><td>~45</td><td>~82</td></tr>
+    <tr><td>Context Window</td><td>128K</td><td>128K</td><td>128K</td></tr>
+    <tr><td>ภาษาไทย</td><td><span class="tag tag-green">ดีมาก</span></td><td><span class="tag tag-green">ดีสุด</span></td><td><span class="tag tag-yellow">พอใช้</span></td></tr>
+    <tr><td>เขียนโค้ด</td><td><span class="tag tag-green">ดี</span></td><td><span class="tag tag-green">ดีมาก</span></td><td><span class="tag tag-green">ดีมาก</span></td></tr>
+    <tr><td>Tool Calling</td><td><span class="tag tag-green">✅</span></td><td><span class="tag tag-green">✅</span></td><td><span class="tag tag-green">✅ แม่น</span></td></tr>
+    <tr><td>หน่วยความจำเหลือ</td><td>~10 GB</td><td>~5 GB</td><td>~10 GB</td></tr>
+    <tr><td>ดิสก์เหลือหลังติดตั้ง</td><td>~12 GB</td><td>~8 GB</td><td>~12 GB</td></tr>
+  </tbody>
+</table>
+
+<h2 style="font-size:1rem; margin:20px 0 10px;">🏁 สรุปตัดสินใจ</h2>
+<table class="summary">
+  <thead>
+    <tr>
+      <th>สถานการณ์</th>
+      <th>เลือก</th>
+      <th>เหตุผล</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr><td>ใช้งานทั่วไป + ภาษาไทย</td><td><span class="tag tag-green">Qwen3-8B</span></td><td>สมดุล ลื่น ประหยัด</td></tr>
+    <tr><td>ทำงานหนัก ต้องการความแม่นยำสูงสุด</td><td><span class="tag tag-yellow">Qwen3-14B</span></td><td>สมองใหญ่กว่า แต่ต้องแล RAM</td></tr>
+    <tr><td>ทำงานภาษาอังกฤษ/โค้ดเป็นหลัก</td><td><span class="tag tag-green">Llama-3.1-8B</span></td><td>Tool calling แม่น ความเร็วสูง</td></tr>
+    <tr><td>เปิดหลายอย่างพร้อม (IDE + Browser + Chat)</td><td><span class="tag tag-green">Qwen3-8B</span></td><td>RAM เหลือเยอะ ไม่แคม</td></tr>
+  </tbody>
+</table>
+
+<div class="footer">
+  <strong>คำแนะนำ:</strong> สำหรับ M4 16GB + ดิสก์ 17GB → <strong>Qwen3-8B Q4_K_M</strong> คือตัวเลือกที่ดีที่สุดในเกือบทุกสถานการณ์
+  ถ้าอยากได้ภาษาไทยที่แม่นกว่าและยอมแล RAM → ไป <strong>Qwen3-14B</strong>
+  <br><br>
+  * tokens/sec โดยประมาณจาก llama.cpp บน M4 16GB โดยใช้ Metal GPU (n_gpu_layers=33)
+</div>
+
+</body>
+</html>

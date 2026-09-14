@@ -1,0 +1,15 @@
+{
+  "request": "สร้างไฟล์ /tmp/test.txt พร้อมข้อความ Hello",
+  "plan": {
+    "goal": "สร้างไฟล์ /tmp/test.txt พร้อมข้อความ Hello",
+    "plan": [
+      {
+        "step": 1,
+        "action": "test"
+      }
+    ]
+  },
+  "execution_meta": {},
+  "created_at": "2026-09-09T00:00:00Z",
+  "version": 1
+}

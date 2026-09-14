@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+# gemini – orchestrator wrapper for agy instances (agy1, agy2, agy3)
+# Uses the gemini-web-bridge MCP server to run tools with the Gemini model,
+# thereby preserving Claude/GPT quota for this account.
+
+set -euo pipefail
+
+# Default MCP server
+MCP_SERVER="gemini-web-bridge"
+
+# List of agy instance identifiers (could be different config profiles)
+AGY_INSTANCES=("agy1" "agy2" "agy3")
+
+# Helper to run a single agy call
+run_agy() {
+  local instance=$1
+  local tool=$2
+  local args=$3
+  # Export a custom environment variable to select the Gemini model for this call
+  # (the actual model name can be overridden via AGY_MODEL env var if needed)
+  export AGY_MODEL="gemini-3.1-pro-preview"
+  echo "[${instance}] Running tool '${tool}' with args ${args} on server ${MCP_SERVER}"
+  agy mcp call \
+    --server "${MCP_SERVER}" \
+    --tool "${tool}" \
+    --args "${args}" \
+    2>&1 | sed "s/^/[${instance}] /"
+}
+
+if [[ $# -lt 1 ]]; then
+  echo "Usage: $(basename "$0") <tool> [json-args]"
+  exit 1
+fi
+
+TOOL="$1"
+ARGS="${2:-{}}"
+
+# Run all instances in parallel and wait for them
+pids=()
+for instance in "${AGY_INSTANCES[@]}"; do
+  run_agy "$instance" "$TOOL" "$ARGS" &
+  pids+=("$!")
+done
+
+# Wait for all background jobs
+for pid in "${pids[@]}"; do
+  wait "$pid"
+done
+
+echo "All agy instances completed."

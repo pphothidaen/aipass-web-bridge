@@ -1,0 +1,218 @@
+{
+  "name": "aipass-vscode-extension",
+  "displayName": "AiPASS Dev Suite",
+  "version": "0.1.29",
+  "icon": "media/icon.png",
+  "publisher": "pphothidaen",
+  "description": "Use de.aipass.net from VS Code with a local bridge, project context controls, and an integrated chat sidebar.",
+  "author": {
+    "name": "PANSAKORN (林金龍) PHOTHIDAEN",
+    "url": "https://github.com/pphothidaen/"
+  },
+  "license": "MIT",
+  "homepage": "https://github.com/pphothidaen/aipass-dev-suite#readme",
+  "bugs": {
+    "url": "https://github.com/pphothidaen/aipass-dev-suite/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/pphothidaen/aipass-dev-suite.git"
+  },
+  "categories": [
+    "Other",
+    "Machine Learning"
+  ],
+  "keywords": [
+    "AiPASS",
+    "de.aipass.net",
+    "AI",
+    "chat",
+    "OpenAI-compatible",
+    "project context"
+  ],
+  "galleryBanner": {
+    "color": "#1f1f1f",
+    "theme": "dark"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "main": "./out/extension.js",
+  "activationEvents": [
+    "onStartupFinished",
+    "onView:aipass.chatView",
+    "onCommand:aipass.startBridge",
+    "onCommand:aipass.ask",
+    "onCommand:aipass.testConnection",
+    "onCommand:aipass.generateUnitTest",
+    "onCommand:aipass.runCheckLocally",
+    "onCommand:aipass.openSidebar"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "aipass.startBridge",
+        "title": "AiPASS: Start Bridge Server"
+      },
+      {
+        "command": "aipass.ask",
+        "title": "AiPASS: Ask about this code"
+      },
+      {
+        "command": "aipass.testConnection",
+        "title": "AiPASS: Test Bridge Connection"
+      },
+      {
+        "command": "aipass.generateUnitTest",
+        "title": "AiPASS: Generate & Run Unit Tests",
+        "icon": "$(beaker)"
+      },
+      {
+        "command": "aipass.runCheckLocally",
+        "title": "AiPASS: Run Check Locally"
+      },
+      {
+        "command": "aipass.openSidebar",
+        "title": "AiPASS: Open Sidebar"
+      }
+    ],
+    "configuration": {
+      "title": "AiPASS",
+      "properties": {
+        "aipass.bridgeUrl": {
+          "type": "string",
+          "default": "http://127.0.0.1:8787",
+          "description": "URL ของ aipass bridge"
+        },
+        "aipass.bridgePath": {
+          "type": "string",
+          "default": "",
+          "description": "โฟลเดอร์ที่มี server.mjs ของ aipass bridge (เว้นว่างเพื่อค้นหาอัตโนมัติ)"
+        },
+        "aipass.agent.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "เปิดใช้งาน Agentic Tool Loop สำหรับตรวจสอบ ค้นหา และแก้ไขไฟล์โปรเจกต์อัตโนมัติ"
+        },
+        "aipass.agent.basePath": {
+          "type": "string",
+          "default": "",
+          "description": "พาธรากของโปรเจกต์ที่ต้องการให้ Agent ตรวจสอบ (เว้นว่างไว้เพื่อใช้ Workspace Folder ปัจจุบัน)"
+        },
+        "aipass.agent.maxSteps": {
+          "type": "number",
+          "default": 8,
+          "description": "จำนวนรอบการทำงานสูงสุดของ Agent ต่อ 1 คำถาม"
+        },
+        "aipass.context.identity": {
+          "type": "boolean",
+          "default": false,
+          "description": "อนุญาตให้ส่ง identity ไปยัง AiPASS"
+        },
+        "aipass.context.coding": {
+          "type": "boolean",
+          "default": true,
+          "description": "อนุญาตให้ส่งบริบทโค้ดไฟล์ที่เปิดอยู่ไปยัง AiPASS"
+        },
+        "aipass.context.projects": {
+          "type": "boolean",
+          "default": true,
+          "description": "อนุญาตให้ส่งชื่อและข้อมูลพื้นฐานของ workspace ไปยัง AiPASS"
+        },
+        "aipass.context.memory": {
+          "type": "boolean",
+          "default": false,
+          "description": "อนุญาตให้ส่ง memory ที่กำหนดเองไปยัง AiPASS (ยังไม่มี memory provider)"
+        }
+      }
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "aipass-sidebar",
+          "title": "AiPASS",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "aipass-sidebar": [
+        {
+          "type": "webview",
+          "id": "aipass.chatView",
+          "name": "AiPASS Chat",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "aipass.openSidebar"
+        },
+        {
+          "command": "aipass.generateUnitTest"
+        },
+        {
+          "command": "aipass.ask"
+        },
+        {
+          "command": "aipass.startBridge"
+        },
+        {
+          "command": "aipass.testConnection"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "aipass.generateUnitTest",
+          "group": "aipass@1",
+          "when": "editorTextFocus"
+        },
+        {
+          "command": "aipass.ask",
+          "group": "aipass@2",
+          "when": "editorTextFocus"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "aipass.generateUnitTest",
+          "group": "navigation@2",
+          "when": "resourceExtname =~ /\\.(js|jsx|ts|tsx|mjs|cjs|py|go|rs|java|c|cpp|cs|php|rb)/"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "aipass.generateUnitTest",
+          "group": "aipass@1"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "aipass.startBridge",
+          "when": "view == aipass.chatView",
+          "group": "navigation@1"
+        },
+        {
+          "command": "aipass.generateUnitTest",
+          "when": "view == aipass.chatView",
+          "group": "navigation@2"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "test": "node --test scripts/test-agent-fallback.mjs scripts/test-crud-unittest.mjs scripts/test-all-features-and-buttons.mjs",
+    "build": "node scripts/build.mjs",
+    "compile": "node scripts/build.mjs",
+    "package": "npm run build && vsce package --no-dependencies"
+  },
+  "devDependencies": {
+    "@types/node": "^26.4.1",
+    "@types/vscode": "^1.85.0",
+    "@vscode/vsce": "^3.9.2",
+    "jsdom": "^30.0.1",
+    "typescript": "^7.0.2"
+  }
+}

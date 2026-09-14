@@ -1,0 +1,21 @@
+{
+  "request": "สร้างไฟล์ /var/folders/9z/h6m84ddj4kl2n9hg5chsqc1m0000gn/T/verify-tr20s_pt/test.txt พร้อมข้อความ Hello",
+  "plan": {
+    "goal": "สร้างไฟล์ /tmp/test.txt พร้อมข้อความ Hello",
+    "plan": [
+      {
+        "step": 1,
+        "action": "test"
+      }
+    ]
+  },
+  "execution_meta": {
+    "exec_status": "success",
+    "total_steps": 1,
+    "all_steps_success": true,
+    "verification_passed": true,
+    "saved_at": "2026-09-10T15:32:52Z"
+  },
+  "created_at": "2026-09-10T15:32:52Z",
+  "version": 1
+}

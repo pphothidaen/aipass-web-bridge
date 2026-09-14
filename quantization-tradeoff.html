@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Quantization Tradeoff — Llama-3.1-8B</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, 'SF Pro Display', system-ui, sans-serif; padding: 24px; max-width: 1100px; margin: 0 auto; color: var(--foreground); background: var(--card); }
+
+  h1 { font-size: 1.4rem; margin-bottom: 4px; font-weight: 700; }
+  .subtitle { font-size: 0.82rem; color: var(--muted-foreground); margin-bottom: 20px; }
+
+  .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 24px; }
+
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; position: relative; transition: transform .15s, box-shadow .15s; }
+  .card:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,.08); }
+  .card.current { border-color: #3b82f6; }
+  .card.current::after { content: "► ใช้อยู่"; position: absolute; top: -10px; right: 12px; background: #3b82f6; color: #fff; font-size: .7rem; padding: 2px 10px; border-radius: 10px; font-weight: 600; }
+  .card.recommended { border-color: var(--accent); }
+  .card.recommended::after { content: "★ แนะนำ"; position: absolute; top: -10px; right: 12px; background: var(--accent); color: #fff; font-size: .7rem; padding: 2px 10px; border-radius: 10px; font-weight: 600; }
+
+  .card h2 { font-size: 1.05rem; margin-bottom: 2px; }
+  .card .params { font-size: .75rem; color: var(--muted-foreground); margin-bottom: 14px; }
+
+  .metric { margin-bottom: 12px; }
+  .metric-label { display: flex; justify-content: space-between; font-size: .78rem; margin-bottom: 4px; }
+  .metric-label span:last-child { font-weight: 600; }
+  .score-bar { display: flex; align-items: center; gap: 8px; }
+  .score-track { flex: 1; height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; }
+  .score-fill { height: 100%; border-radius: 4px; }
+
+  .verdict { font-size: .8rem; margin-top: 14px; padding: 10px 12px; background: rgba(127,127,127,.08); border-radius: 8px; line-height: 1.4; }
+
+  .summary { width: 100%; border-collapse: collapse; font-size: .82rem; margin-top: 8px; }
+  .summary th, .summary td { padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--border); }
+  .summary th { font-weight: 600; background: rgba(127,127,127,.06); }
+  .summary td:nth-child(2), .summary td:nth-child(3), .summary td:nth-child(4) { text-align: center; }
+
+  .tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: .7rem; font-weight: 600; }
+  .tag-green { background: #22c55e22; color: #16a34a; }
+  .tag-yellow { background: #eab30822; color: #ca8a04; }
+  .tag-red { background: #ef444422; color: #dc2626; }
+  .tag-blue { background: #3b82f622; color: #2563eb; }
+
+  .footer { margin-top: 20px; font-size: .75rem; color: var(--muted-foreground); line-height: 1.5; }
+
+  .quant-table { width: 100%; border-collapse: collapse; font-size: .78rem; margin: 12px 0; }
+  .quant-table th, .quant-table td { padding: 6px 8px; border: 1px solid var(--border); text-align: center; }
+  .quant-table th { background: rgba(127,127,127,.06); font-weight: 600; }
+  .quant-table tr.highlight { background: rgba(59,130,246,.08); }
+</style>
+</head>
+<body>
+
+<h1>⚖️ Quantization Tradeoff — Llama-3.1-8B</h1>
+<p class="subtitle">Apple M4 MacBook Pro · 16GB Unified Memory · ดิสก์เหลือ ~39GB</p>
+
+<div class="cards">
+
+  <!-- Q4_K_M -->
+  <div class="card current">
+    <h2>Q4_K_M</h2>
+    <p class="params">4-bit · 4.6 GB · ใช้อยู่</p>
+
+    <div class="metric">
+      <div class="metric-label"><span>📊 Quality</span><span>ดีมาก</span></div>
+      <div class="score-bar"><div class="score-track"><div class="score-fill" style="width:92%; background:linear-gradient(90deg,#22c55e,#4ade80)"></div></div></div>
+    </div>
+
+    <div class="metric">
+      <div class="metric-label"><span>⚡ Speed</span><span>~15 t/s</span></div>
+      <div class="score-bar"><div class="score-track"><div class="score-fill" style="width:50%; background:linear-gradient(90deg,#eab308,#facc15)"></div></div></div>
+    </div>
+
+    <div class="metric">
+      <div class="metric-label"><span>💾 RAM</span><span>~6 GB</span></div>
+      <div class="score-bar"><div class="score-track"><div class="score-fill" style="width:38%; background:linear-gradient(90deg,#22c55e,#86efac)"></div></div></div>
+    </div>
+
+    <div class="metric">
+      <div class="metric-label"><span>📦 Disk</span><span>4.6 GB</span></div>
+      <div class="score-bar"><div class="score-track"><div class="score-fill" style="width:28%; background:linear-gradient(90deg,#22c55e,#86efac)"></div></div></div>
+    </div>
+
+    <div class="metric">
+      <div class="metric-label"><span>🎯 ภาษาไทย</span><span>พอใช้</span></div>
+      <div class="score-bar"><div class="score-track"><div class="score-fill" style="width:55%; background:linear-gradient(90deg,#eab308,#facc15)"></div></div></div>
+    </div>
+
+    <div class="metric">
+      <div class="metric-label"><span>🔧 Tool Calling</span><span>✅ แม่น</span></div>
+      <div class="score-bar"><div class="score-track"><div class="score-fill" style="width:90%; background:linear-gradient(90deg,#22c55e,#4ade80)"></div></div></div>
+    </div>
+
+    <div class="verdict">📌 <strong>ค่าเริ่มต้นที่ดี</strong><br>สมดุลระหว่างคุณภาพและขนาด แต่ยังช้าอยู่ ~15 t/s</div>
+  </div>
+
+  <!-- Q3_K_M -->
+  <div class="card recommended">
+    <h2>Q3_K_M</h2>
+    <p class="params">3-bit · 3.5 GB · เล็กกว่า</p>
+
+    <div class="metric">
+      <div class="metric-label"><span>📊 Quality</span><span>ดี</span></div>
+      <div class="score-bar"><div class="score-track"><div class="score-fill" style="width:82%; background:linear-gradient(90deg,#22c55e,#4ade80)"></div></div></div>
+    </div>
+
+    <div class="metric">
+      <div class="metric-label"><span>⚡ Speed</span><span>~22 t/s</span></div>
+      <div class="score-bar"><div class="score-track"><div class="score-fill" style="width:72%; background:linear-gradient(90deg,#22c55e,#4ade80)"></div></div></div>
+    </div>
+
+    <div class="metric">
+      <div class="metric-label"><span>💾 RAM</span><span>~4.5 GB</span></div>
+      <div class="score-bar"><div class="score-track"><div class="score-fill" style="width:28%; background:linear-gradient(90deg,#22c55e,#86efac)"></div></div></div>
+    </div>
+
+    <div class="metric">
+      <div class="metric-label"><span>📦 Disk</span><span>3.5 GB</span></div>
+      <div class="score-bar"><div class="score-track"><div class="score-fill" style="width:22%; background:linear-gradient(90deg,#22c55e,#86efac)"></div></div></div>
+    </div>
+
+    <div class="metric">
+      <div class="metric-label"><span>🎯 ภาษาไทย</span><span>พอใช้</span></div>
+      <div class="score-bar"><div class="score-track"><div class="score-fill" style="width:50%; background:linear-gradient(90deg,#eab308,#facc15)"></div></div></div>
+    </div>
+
+    <div class="metric">
+      <div class="metric-label"><span>🔧 Tool Calling</span><span>✅ ได้</span></div>
+      <div class="score-bar"><div class="score-track"><div class="score-fill" style="width:82%; background:linear-gradient(90deg,#22c55e,#4ade80)"></div></div></div>
+    </div>
+
+    <div class="verdict">✅ <strong>แนะนำ!</strong><br>เร็วขึ้น 50% ประหยัดดิสก์ 1GB คุณณภาพลดนิดเดียว — ดีที่สุดสำหรับ M4 16GB</div>
+  </div>
+
+  <!-- Q4_0 -->
+  <div class="card">
+    <h2>Q4_0</h2>
+    <p class="params">4-bit · 4.3 GB · บริสุทธิ์</p>
+
+    <div class="metric">
+      <div class="metric-label"><span>📊 Quality</span><span>ดี</span></div>
+      <div class="score-bar"><div class="score-track"><div class="score-fill" style="width:85%; background:linear-gradient(90deg,#22c55e,#4ade80)"></div></div></div>
+    </div>
+
+    <div class="metric">
+      <div class="metric-label"><span>⚡ Speed</span><span>~18 t/s</span></div>
+      <div class="score-bar"><div class="score-track"><div class="score-fill" style="width:60%; background:linear-gradient(90deg,#22c55e,#4ade80)"></div></div></div>
+    </div>
+
+    <div class="metric">
+      <div class="metric-label"><span>💾 RAM</span><span>~5.5 GB</span></div>
+      <div class="score-bar"><div class="score-track"><div class="score-fill" style="width:35%; background:linear-gradient(90deg,#22c55e,#86efac)"></div></div></div>
+    </div>
+
+    <div class="metric">
+      <div class="metric-label"><span>📦 Disk</span><span>4.3 GB</span></div>
+      <div class="score-bar"><div class="score-track"><div class="score-fill" style="width:26%; background:linear-gradient(90deg,#22c55e,#86efac)"></div></div></div>
+    </div>
+
+    <div class="metric">
+      <div class="metric-label"><span>🎯 ภาษาไทย</span><span>พอใช้</span></div>
+      <div class="score-bar"><div class="score-track"><div class="score-fill" style="width:52%; background:linear-gradient(90deg,#eab308,#facc15)"></div></div></div>
+    </div>
+
+    <div class="metric">
+      <div class="metric-label"><span>🔧 Tool Calling</span><span>✅ ดี</span></div>
+      <div class="score-bar"><div class="score-track"><div class="score-fill" style="width:85%; background:linear-gradient(90deg,#22c55e,#4ade80)"></div></div></div>
+    </div>
+
+    <div class="verdict">🔧 <strong>เร็วกว่า Q4_K_M เล็กน้อย</strong><br>quantize แบบเรียบง่าย เหมาะกับ hardware ที่รองรับ 4-bit โดยเฉพาะ</div>
+  </div>
+
+</div>
+
+<!-- COMPARISON TABLE -->
+<h2 style="font-size:1rem; margin-bottom:10px;">📊 เปรียบเทียบตัวเลข</h2>
+<table class="summary">
+  <thead>
+    <tr>
+      <th>เกณฑ์</th>
+      <th>Q4_K_M</th>
+      <th>Q3_K_M</th>
+      <th>Q4_0</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr><td>Bits</td><td>4</td><td>3</td><td>4</td></tr>
+    <tr><td>ขนาด GGUF</td><td>4.6 GB</td><td>3.5 GB</td><td>4.3 GB</td></tr>
+    <tr><td>RAM ใช้</td><td>~6 GB</td><td>~4.5 GB</td><td>~5.5 GB</td></tr>
+    <tr><td>Tokens/sec</td><td>~15</td><td>~22</td><td>~18</td></tr>
+    <tr><td>Quality vs FP16</td><td>~95%</td><td>~90%</td><td>~92%</td></tr>
+    <tr><td>ภาษาไทย</td><td><span class="tag tag-yellow">พอใช้</span></td><td><span class="tag tag-yellow">พอใช้</span></td><td><span class="tag tag-yellow">พอใช้</span></td></tr>
+    <tr><td>Tool Calling</td><td><span class="tag tag-green">แม่น</span></td><td><span class="tag tag-green">ดี</span></td><td><span class="tag tag-green">ดี</span></td></tr>
+    <tr><td>เหมาะกับ</td><td>General</td><td><span class="tag tag-blue">M4 16GB</span></td><td>GPU-bound</td></tr>
+  </tbody>
+</table>
+
+<h2 style="font-size:1rem; margin:20px 0 10px;">🔍 เปรียบเทียบ Quantization</h2>
+<table class="quant-table">
+  <thead>
+    <tr>
+      <th>Format</th>
+      <th>Bits</th>
+      <th>Type</th>
+      <th>Quality</th>
+      <th>Speed</th>
+      <th>Size</th>
+      <th>ใช้เมื่อไหร่</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr><td>Q4_K_M</td><td>4</td><td>K-quant</td><td>สูง</td><td>ปานกลาง</td><td>ปานกลาง</td><td>General purpose</td></tr>
+    <tr class="highlight"><td>Q3_K_M</td><td>3</td><td>K-quant</td><td>ดี</td><td>เร็ว</td><td>เล็ก</td><td>RAM/ดิสก์จำกัด</td></tr>
+    <tr><td>Q4_0</td><td>4</td><td>Basic</td><td>ดี</td><td>เร็ว</td><td>ปานกลาง</td><td>GPU เต็มที่</td></tr>
+    <tr><td>Q5_K_M</td><td>5</td><td>K-quant</td><td>สูงสุด</td><td>ช้า</td><td>ใหญ่</td><td>Quality สำคัญ</td></tr>
+    <tr><td>Q2_K</td><td>2</td><td>K-quant</td><td>พอใช้</td><td>เร็วมาก</td><td>เล็กมาก</td><td>ทดสอบเร็ว</td></tr>
+  </tbody>
+</table>
+
+<h2 style="font-size:1rem; margin:20px 0 10px;">🏁 สรุปตัดสินใจ</h2>
+<table class="summary">
+  <thead>
+    <tr>
+      <th>สถานการณ์</th>
+      <th>เลือก</th>
+      <th>เหตุผล</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr><td>เร็วที่สุด + RAM เหลือมาก</td><td><span class="tag tag-green">Q3_K_M</span></td><td>เร็ว 50% กว่า Q4_K_M RAM เหลือ ~11GB</td></tr>
+    <tr><td>Quality สูงสุด</td><td><span class="tag tag-yellow">Q4_K_M</span></td><td>ยังใช้อยู่ — ดีที่สุดแต่ช้า</td></tr>
+    <tr><td>สมดุล + เข้ากับ GPU</td><td><span class="tag tag-blue">Q4_0</span></td><td>เร็วกว่า Q4_K_M นิด เหมาะกับ Metal</td></tr>
+    <tr><td>ดิสก์ 39GB เหลือ</td><td><span class="tag tag-green">Q3_K_M</span></td><td>3.5GB ประหยัด 1.1GB จาก Q4_K_M</td></tr>
+  </tbody>
+</table>
+
+<div class="footer">
+  <strong>คำแนะนำ:</strong> สำหรับ M4 16GB + ดิสก์ 39GB → <strong>Q3_K_M</strong> คือตัวเลือกที่ดีที่สุด
+  เร็วขึ้น ~50% ประหยัดดิสก์/RAM คุณภาพลดนิดเดียวแต่ยังใช้งานได้ดี
+  <br><br>
+  * tokens/sec โดยประมาณจาก llama.cpp บน M4 16GB ด้วย Metal GPU (n-gpu-layers=999)
+</div>
+
+</body>
+</html>
