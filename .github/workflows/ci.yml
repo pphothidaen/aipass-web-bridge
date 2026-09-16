@@ -24,7 +24,7 @@ jobs:
       - name: Live smoke gate (prod must answer JSON, not Hello World)
         run: |
           ST=$(curl -s --max-time 15 https://aipass-web-bridge.taijustarrett417.workers.dev/status)
-          echo "$ST" | grep -q '"service": "aipass-web-bridge"' || (echo "PROD SMOKE FAILED: $ST" && exit 1)
+          echo "$ST" | grep -q '"service": *"aipass-web-bridge"' || (echo "PROD SMOKE FAILED: $ST" && exit 1)
 
   deploy:
     needs: smoke
