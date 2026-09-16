@@ -1,8 +1,49 @@
 # Secretary implementation handoff
 
-Updated: 2026-09-17 Asia/Bangkok
+Updated: 2026-09-17 (evening) Asia/Bangkok
 
-## ⚡ LATEST CHECKPOINT — Phase 5: Performance + Dynamic Catalog + Model Skills + Attachments (2026-09-17)
+## ⚡ LATEST CHECKPOINT — Phase 6 partial: CI/CD green on GitHub (2026-09-17)
+
+Repo: **github.com/pphothidaen/aipass-web-bridge (private)** · branch `master`
+
+### ATOMIC_TICKET — Phase 6 progress
+
+| Ticket | Task | Status | Evidence |
+|--------|------|--------|----------|
+| P6-01a | GitHub private repo + push master (noreply email fix) | ✅ | `git remote -v` → pphothidaen/aipass-web-bridge; 6 commits |
+| P6-01b | CI workflow `.github/workflows/ci.yml` — syntax gates (worker/release-extension/secretary.py) + live prod smoke + guarded `wrangler deploy` | ✅ | Run 35131179993 **success**: ✓ smoke (10s) + ✓ deploy (10s) |
+| P6-01c | Enable real deploy from CI | ⏳ | `gh secret set CLOUDFLARE_API_TOKEN` ด้วย token ที่มีสิทธิ์ Workers Scripts (ยังไม่ตั้ง — ตอนนี้ deploy ออกจากเครื่อง Mac เท่านั้น) |
+| P6-02 | node6 Hermes provider ชี้ cloud MCP | 🚫 BLOCKED | `ssh node6` timeout (192.168.168.146) — ต้องเข้า network/Tailscale ก่อน |
+| P6-03 | Smart Router tier-2 (free flash-lite vs paid) | ⏳ | หลัง P6-02 |
+| P6-04 | Automated probe (aipass_chat) ใน CI/cron | ⏳ | reuse test_c10_c11 pattern |
+| P6-05 | DoD gate: warm <8s, CONNECTED ≥99%/24h, 0 mock | ⏳ | ข้อมูลปัจจุบัน: warm ~3.4s ✅, CONNECTED ✅ |
+
+### Continue next time — ลำดับที่แนะนำ
+
+1. **P6-01c**: สร้าง Cloudflare API token (dashboard → My Profile → API Tokens →
+   template "Deploy a Worker") แล้ว
+   `gh secret set CLOUDFLARE_API_TOKEN --repo pphothidaen/aipass-web-bridge`
+   → push อะไรก็ได้ หรือ `gh workflow run ci` เพื่อยืนยัน deploy จาก CI จริง
+2. **P6-02**: เมื่อ node6 reachable (Tailscale up) — ssh ไปใส่ provider
+   `aipass-web-bridge` (base_url workers.dev/v1, api_key hermes-secret-key-2026)
+   + mcp_servers entry เหมือน Mac (ตัวอย่าง YAML อยู่ใน plan.md "Config style")
+   แล้วทดสอบ `hermes mcp test aipass-web-bridge` บน node6
+3. **P6-03/04/05**: ตาม tickets ในตาราง
+
+### Notes สำคัญสำหรับ session ถัดไป
+
+- `packages/core` เป็น **nested git repo** (มี history ของตัวเอง — v2 hardening
+  commits) — อย่าลบ .git ข้างใน; CI ตรวจ release copy (`release/chrome-extension/`) แทน
+- prod ปัจจุบัน: Version 136c85d-era worker, extension CONNECTED, catalog rev 8
+  (35 models), warm latency ~3.4s
+- secrets prod: BRIDGE_SECRET / CLIENT_API_KEY (ค่าดูได้ใน Cloudflare dashboard;
+  ใช้ใน docs เป็น aipass-bridge-secret-2026 / hermes-secret-key-2026)
+- อย่า push secrets ลง repo — ปัจจุบันใช้ผ่าน gh secret / wrangler เท่านั้น
+
+---
+
+
+## Phase 5 checkpoint (2026-09-17 morning — ก่อน Phase 6)
 
 All tickets below are DONE with live evidence on production
 (`https://aipass-web-bridge.taijustarrett417.workers.dev`, Version f88926db+).
