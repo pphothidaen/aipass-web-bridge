@@ -13,12 +13,14 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - name: Syntax check worker + extension
+      - name: Syntax check worker + shipped extension (release copy)
         run: |
           node --check cloudflare/worker.js
-          node --check packages/core/aipass-bridge/extension/background.js
-          node --check packages/core/aipass-bridge/extension/popup.js
+          node --check release/chrome-extension/background.js
+          node --check release/chrome-extension/popup.js
           python3 -m py_compile secretary.py
+      - name: Note — packages/core is a nested git repo (own history)
+        run: echo "packages/core/aipass-bridge has its own .git; CI validates the shipped release copy + worker.
       - name: Live smoke gate (prod must answer JSON, not Hello World)
         run: |
           ST=$(curl -s --max-time 15 https://aipass-web-bridge.taijustarrett417.workers.dev/status)
