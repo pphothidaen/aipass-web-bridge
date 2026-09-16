@@ -10,6 +10,10 @@ const RECONNECT_MS = 3000;
 const CYCLE_MS = 4 * 60 * 1000; // reconnect before Chrome's long-request ceiling
 const CLOUDFLARE_RETRY_DELAY_MS = 1200;
 
+// ─── Lease Constants ──────────────────────────────────────────────────────
+const LEASE_TTL_MS = 1000;        // failover cutoff
+const HEARTBEAT_INTERVAL_MS = 250; // heartbeat renewal interval
+
 let controller = null;
 let connected = false;
 let lastError = '';
@@ -307,7 +311,13 @@ async function connect() {
 async function handleBridgeEvent(name, data) {
   // Protocol v2 messages from BridgeDO
   if (name === 'EXECUTE_REQUEST' || name === 'PREPARE_MODEL' || name === 'CANCEL_REQUEST') {
-    const tab = await findChatTab();
+    const leaderTabId = tabCoordinator.getLeaderTabId();
+    let tab = null;
+    if (leaderTabId != null) {
+      try { tab = await chrome.tabs.get(leaderTabId); }
+      catch { tabCoordinator.removeTab(leaderTabId); }
+    }
+    if (!tab) tab = await findChatTab();
     if (!tab) {
       // Report error back to bridge channel
       await postBridge({ type: 'STREAM_ERROR', requestId: data.requestId, error: 'no de.aipass.net tab is open', code: 'no_tab' });
@@ -321,7 +331,13 @@ async function handleBridgeEvent(name, data) {
     }
   } else if (name === 'SESSION_READY') {
     // BridgeDO assigned session epoch — forward to leader tab
-    const tab = await findChatTab();
+    const leaderTabId = tabCoordinator.getLeaderTabId();
+    let tab = null;
+    if (leaderTabId != null) {
+      try { tab = await chrome.tabs.get(leaderTabId); } catch { /* failover below */ }
+    }
+    if (!tab) tab = await findChatTab();
+    await tabCoordinator.setSessionEpoch(data.sessionEpoch, false);
     if (tab) {
       try {
         await chrome.tabs.sendMessage(tab.id, {
@@ -387,66 +403,187 @@ async function connectBridge() {
   }
 }
 
-// ─── CentralTabCoordinator ────────────────────────────────────────────────
-// Manages leader/standby election across multiple de.aipass.net tabs.
-// Only the leader tab processes requests; standbys are dormant until failover.
+// ─── Lease-Based TabCoordinator ───────────────────────────────────────────
+// TTL lease leader election with state machine:
+//   ACQUIRE_LEASE → HEARTBEAT (loop) → YIELD | REVOKED
+// Single active leader at any time. Lease persisted to chrome.storage.session.
 const tabCoordinator = {
-  ports: new Map(),  // tabId -> port
+  ports: new Map(),   // tabId -> port
   leaderId: null,
-  
-  addTab(tabId, port) {
-    this.ports.set(tabId, port);
-    if (!this.leaderId) {
-      this.electLeader(tabId);
-    } else {
-      this.notifyRole(tabId, 'standby');
+  leaseExpiry: 0,
+  sessionEpoch: 0,
+  heartbeatTimer: null,
+
+  // ─── Lease State Machine ───────────────────────────────────────────────
+
+  // ACQUIRE_LEASE: A tab requests to become leader. Succeeds if no leader,
+  // lease expired, or the same tab re-acquiring.
+  async acquireLease(tabId) {
+    try {
+      const data = await chrome.storage.session.get(['leaderTabId', 'leaseExpiry']);
+      const now = Date.now();
+      const noLeader = !data.leaderTabId;
+      const leaseExpired = data.leaseExpiry != null && data.leaseExpiry < now;
+      const isCurrentLeader = data.leaderTabId === tabId;
+
+      if (!noLeader && !leaseExpired && !isCurrentLeader) return false;
+
+      const expiry = now + LEASE_TTL_MS;
+      this.leaderId = tabId;
+      this.leaseExpiry = expiry;
+      if (!this.sessionEpoch) this.sessionEpoch = now;
+
+      await chrome.storage.session.set({
+        leaderTabId: tabId,
+        leaseExpiry: expiry,
+        sessionEpoch: this.sessionEpoch,
+      });
+
+      this.notifyRole(tabId, 'leader', this.sessionEpoch);
+      // Demote others
+      for (const [id] of this.ports) {
+        if (id !== tabId) this.notifyRole(id, 'standby', this.sessionEpoch);
+      }
+      this._startHeartbeat(tabId);
+      console.log('[aipass-bg] lease acquired by tab', tabId, 'until', new Date(expiry).toISOString());
+      return true;
+    } catch {
+      return false;
     }
   },
-  
+
+  // HEARTBEAT: Current leader renews its lease. Extends expiry by LEASE_TTL_MS.
+  async heartbeat(tabId) {
+    if (this.leaderId !== tabId) return false;
+    try {
+      const expiry = Date.now() + LEASE_TTL_MS;
+      this.leaseExpiry = expiry;
+      await chrome.storage.session.set({ leaseExpiry: expiry });
+      return true;
+    } catch {
+      return false;
+    }
+  },
+
+  // YIELD: Current leader voluntarily gives up leadership. Next tab acquires.
+  async yieldLeadership(tabId) {
+    if (this.leaderId !== tabId) return;
+    console.log('[aipass-bg] tab', tabId, 'yielding leadership');
+    this._stopHeartbeat();
+    this.leaderId = null;
+    this.leaseExpiry = 0;
+    await chrome.storage.session.remove(['leaderTabId', 'leaseExpiry']);
+
+    // Failover: elect next available tab
+    const next = this.ports.keys().next();
+    if (!next.done) {
+      this.acquireLease(next.value);
+    } else {
+      chrome.storage.session.remove('sessionEpoch');
+      console.log('[aipass-bg] no tabs left for leader election');
+    }
+  },
+
+  // REVOKED: Leadership was taken from this tab (failover or lease expired).
+  // Internal transition — notifies the demoted tab.
+  async revokeLease(tabId) {
+    if (this.leaderId !== tabId) return;
+    console.log('[aipass-bg] lease revoked from tab', tabId);
+    this._stopHeartbeat();
+    this.notifyRole(tabId, 'revoked', this.sessionEpoch);
+    this.leaderId = null;
+    this.leaseExpiry = 0;
+    await chrome.storage.session.remove(['leaderTabId', 'leaseExpiry']);
+
+    // Elect next available tab
+    const next = this.ports.keys().next();
+    if (!next.done) {
+      this.acquireLease(next.value);
+    } else {
+      chrome.storage.session.remove('sessionEpoch');
+      console.log('[aipass-bg] no tabs left for leader election');
+    }
+  },
+
+  // ─── Heartbeat Timer ───────────────────────────────────────────────────
+
+  _startHeartbeat(tabId) {
+    this._stopHeartbeat();
+    this.heartbeatTimer = setInterval(() => {
+      if (this.leaderId === tabId) {
+        this.heartbeat(tabId);
+      } else {
+        this._stopHeartbeat();
+      }
+    }, HEARTBEAT_INTERVAL_MS);
+  },
+
+  _stopHeartbeat() {
+    if (this.heartbeatTimer) {
+      clearInterval(this.heartbeatTimer);
+      this.heartbeatTimer = null;
+    }
+  },
+
+  // ─── Port Management ───────────────────────────────────────────────────
+
+  addTab(tabId, port) {
+    this.ports.set(tabId, port);
+    // Attempt to acquire lease (first-tab-wins if no active lease)
+    this.acquireLease(tabId);
+  },
+
   removeTab(tabId) {
     this.ports.delete(tabId);
     if (this.leaderId === tabId) {
-      this.leaderId = null;
-      // Failover: elect next available tab
-      const next = this.ports.keys().next();
-      if (!next.done) {
-        this.electLeader(next.value);
-        console.log('[aipass-bg] failover: new leader tab', next.value);
-      } else {
-        chrome.storage.session.remove('leaderTabId');
-        console.log('[aipass-bg] no tabs left for leader election');
-      }
+      this.revokeLease(tabId);
     }
   },
-  
-  electLeader(tabId) {
-    this.leaderId = tabId;
-    chrome.storage.session.set({ leaderTabId: tabId });
-    this.notifyRole(tabId, 'leader');
-    // Demote all other tabs to standby
-    for (const [id] of this.ports) {
-      if (id !== tabId) this.notifyRole(id, 'standby');
-    }
-    console.log('[aipass-bg] elected leader tab', tabId);
+
+  async setSessionEpoch(epoch, announce = true) {
+    if (epoch == null) return;
+    this.sessionEpoch = epoch;
+    await chrome.storage.session.set({ sessionEpoch: epoch });
+    if (announce) await postBridge({ type: 'SESSION_READY', sessionEpoch: epoch, protocolVersion: 2 });
+    for (const [id] of this.ports) this.notifyRole(id, id === this.leaderId ? 'leader' : 'standby', epoch);
   },
-  
-  notifyRole(tabId, role) {
+
+  notifyRole(tabId, role, sessionEpoch = this.sessionEpoch) {
     const port = this.ports.get(tabId);
     if (port) {
       try {
-        port.postMessage({ type: 'coordinator-role', role, sessionEpoch: Date.now() });
+        port.postMessage({ type: 'coordinator-role', role, sessionEpoch });
       } catch { /* port closed */ }
     }
   },
-  
+
+  // ─── Leader Query ─────────────────────────────────────────────────────
+
   getLeaderTabId() {
+    if (this.leaderId && this.leaseExpiry > Date.now()) {
+      return this.leaderId;
+    }
+    // Lease expired — clear local leader and trigger re-election
+    if (this.leaderId && this.leaseExpiry > 0 && this.leaseExpiry <= Date.now()) {
+      console.log('[aipass-bg] leader lease expired for tab', this.leaderId);
+      const expired = this.leaderId;
+      this.leaderId = null;
+      this.leaseExpiry = 0;
+      // Reuse the same logic as revokeLease but without the notification
+      // since the tab may still be around (just missed heartbeats)
+      this.ports.delete(expired);
+      const next = this.ports.keys().next();
+      if (!next.done) {
+        this.acquireLease(next.value);
+      }
+    }
     return this.leaderId;
   },
-  
+
   getLeaderPort() {
     if (!this.leaderId) return null;
     return this.ports.get(this.leaderId) || null;
-  }
+  },
 };
 
 // A content script and the offscreen document each hold one of these open, which
@@ -460,11 +597,13 @@ chrome.runtime.onConnect.addListener((port) => {
       if (port.name === 'aipass-tab') {
         tabCoordinator.addTab(tabId, port);
       }
-      chrome.storage.session.get('leaderTabId', (data) => {
-        if (!data.leaderTabId) {
-          chrome.storage.session.set({ leaderTabId: tabId }, () => {
-            console.log('[aipass-bg] elected leader tab', tabId);
-          });
+      // Restore sessionEpoch from storage on (re)connect
+      chrome.storage.session.get(['sessionEpoch', 'leaderTabId', 'leaseExpiry'], (data) => {
+        if (chrome.runtime.lastError) return;
+        if (data.sessionEpoch) tabCoordinator.sessionEpoch = data.sessionEpoch;
+        // If we have a tab and there's an expired lease, try to acquire
+        if (data.leaderTabId && data.leaseExpiry && data.leaseExpiry < Date.now()) {
+          tabCoordinator.acquireLease(tabId);
         }
       });
     }
@@ -510,6 +649,52 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     }
     return;
   }
+
+  // ─── Lease State Machine Messages ──────────────────────────────────────
+  // Content scripts use these to participate in leader election.
+  if (msg?.type === 'acquire_lease') {
+    const tabId = _sender?.tab?.id;
+    if (tabId != null) {
+      tabCoordinator.acquireLease(tabId).then((ok) => {
+        sendResponse({ ok, leader: tabCoordinator.leaderId === tabId });
+      });
+      return true; // async response
+    }
+    sendResponse({ ok: false });
+    return true;
+  }
+
+  if (msg?.type === 'heartbeat') {
+    const tabId = _sender?.tab?.id;
+    if (tabId != null) {
+      tabCoordinator.heartbeat(tabId).then((ok) => {
+        sendResponse({ ok, leader: tabCoordinator.leaderId === tabId, leaseExpiry: tabCoordinator.leaseExpiry });
+      });
+      return true;
+    }
+    sendResponse({ ok: false });
+    return true;
+  }
+
+  if (msg?.type === 'yield_leadership') {
+    const tabId = _sender?.tab?.id;
+    if (tabId != null) {
+      tabCoordinator.yieldLeadership(tabId);
+      sendResponse({ ok: true });
+    }
+    return true;
+  }
+
+  if (msg?.type === 'get_lease_state') {
+    sendResponse({
+      leaderId: tabCoordinator.leaderId,
+      leaseExpiry: tabCoordinator.leaseExpiry,
+      sessionEpoch: tabCoordinator.sessionEpoch,
+      isLeader: _sender?.tab?.id === tabCoordinator.leaderId,
+    });
+    return true;
+  }
+
   if (msg?.type === 'status') {
     (async () => {
       const tab = await findChatTab();

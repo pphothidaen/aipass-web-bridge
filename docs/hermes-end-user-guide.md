@@ -40,7 +40,7 @@ Secretary คือ "สมองที่สอง" ที่วางแผน
 
 Agent จะรันคำสั่งให้เอง:
 ```bash
-python3 /Users/kimlenglim/Project/aipass-dev-suite/secretary.py "<คำสั่งของคุณ>" --cwd <โฟลเดอร์ทำงาน>
+python3 /Users/kimlenglim/Project/aipass-web-bridge/secretary.py "<คำสั่งของคุณ>" --cwd <โฟลเดอร์ทำงาน>
 ```
 แล้วรายงานผลกลับมาเป็น: สถานะ (`success`), สิ่งที่ execute ไป, ผล verification และสรุปภาษาคน
 
@@ -60,7 +60,7 @@ python3 /Users/kimlenglim/Project/aipass-dev-suite/secretary.py "<คำสั�
 hermes -z "สวัสดี" --provider aipass-bridge -m gemini-3.1-flash-lite
 
 # สั่ง Secretary ตรง ๆ (ไม่ผ่านแชท)
-python3 /Users/kimlenglim/Project/aipass-dev-suite/secretary.py \
+python3 /Users/kimlenglim/Project/aipass-web-bridge/secretary.py \
   "create file /tmp/demo.txt with content hello" --cwd /tmp
 
 # เลือก model ค่าเริ่มต้นของแอปแบบ interactive

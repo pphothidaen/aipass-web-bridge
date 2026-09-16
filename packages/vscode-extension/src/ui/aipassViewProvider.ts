@@ -67,7 +67,7 @@ export class AipassViewProvider implements vscode.WebviewViewProvider {
         private readonly _getContext: () => { text: string; sections: string[] },
         private readonly _onContextUsed?: (details: { model?: string; sections: string[] }) => void,
         private readonly _startBridge?: () => Promise<boolean>,
-        private readonly _extensionVersion: string = '0.1.29',
+        private readonly _extensionVersion: string = '0.1.30',
         private readonly _workspaceState?: vscode.Memento,
         private readonly _globalState?: vscode.Memento,
     ) {

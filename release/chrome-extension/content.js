@@ -28,6 +28,7 @@ window.addEventListener('message', (event) => {
   const msg = event.data;
   if (!msg || typeof msg !== 'object' || msg[TAG] !== 'res') return;
   const { [TAG]: _, ...payload } = msg;
+  if (!payload.requestId && payload.jobId) payload.requestId = payload.jobId;
 
   // Normalize between legacy kind and Protocol v2 type for robust forwarding
   if (!payload.type && payload.kind) {

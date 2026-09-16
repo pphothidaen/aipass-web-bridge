@@ -4,7 +4,7 @@
 
 set -e
 
-BRIDGE_DIR="/Users/kimlenglim/Project/aipass-dev-suite/packages/core/aipass-bridge/bridge"
+BRIDGE_DIR="/Users/kimlenglim/Project/aipass-web-bridge/packages/core/aipass-bridge/bridge"
 BRIDGE_LOG="/tmp/aipass-bridge.log"
 MCP_AGENT="packages/core/aipass-bridge/bridge/mcp-agent.mjs"
 
@@ -68,7 +68,7 @@ test_custom_endpoints() {
     local test_result
     test_result=$(curl -s -X POST http://127.0.0.1:8787/v1/files/read \
         -H "Content-Type: application/json" \
-        -d '{"path":"/Users/kimlenglim/Project/aipass-dev-suite/package.json","limit":3}' 2>/dev/null)
+        -d '{"path":"/Users/kimlenglim/Project/aipass-web-bridge/package.json","limit":3}' 2>/dev/null)
     
     if echo "$test_result" | grep -q '"content"'; then
         echo -e "${GREEN}✓${NC} /v1/files/read working"
@@ -79,7 +79,7 @@ test_custom_endpoints() {
     # Test /v1/files/list
     test_result=$(curl -s -X POST http://127.0.0.1:8787/v1/files/list \
         -H "Content-Type: application/json" \
-        -d '{"path":"/Users/kimlenglim/Project/aipass-dev-suite/packages","limit":5}' 2>/dev/null)
+        -d '{"path":"/Users/kimlenglim/Project/aipass-web-bridge/packages","limit":5}' 2>/dev/null)
     
     if echo "$test_result" | grep -q '"entries"'; then
         echo -e "${GREEN}✓${NC} /v1/files/list working"

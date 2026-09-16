@@ -1,4 +1,4 @@
-name = "aipass-bridge-cloud-hub"
+name = "aipass-web-bridge"
 main = "worker.js"
 compatibility_date = "2024-11-01"
 
@@ -9,7 +9,8 @@ bindings = [{ name = "EXT_HUB", class_name = "ExtHub" }]
 tag = "v1"
 new_sqlite_classes = ["ExtHub"]
 
-# After deploy:
-#   wrangler secret put BRIDGE_TOKEN
-# Then set the same token on the Chrome extension (x-bridge-token / popup URL)
-# and point Hermes' aipass-bridge provider base_url at https://<name>.workers.dev/v1
+# Secrets already set on this worker via the Cloudflare dashboard:
+#   BRIDGE_SECRET   (aipass-bridge-secret-2026)  → extension channel /ext/*
+#   CLIENT_API_KEY  (hermes-secret-key-2026)     → API/MCP clients
+# Chrome extension popup: Bridge URL = https://aipass-web-bridge.<account>.workers.dev
+# Hermes provider base_url = https://aipass-web-bridge.<account>.workers.dev/v1

@@ -1,3 +1,62 @@
+## [0.5.0] - 2026-09-17
+
+### Added
+- **Performance**: conversation cache + pre-warm on extension connect + 404
+  auto-recreate/retry — chat round-trip now ~3–5s (was ~15s with per-call
+  conversation creation).
+- **Dynamic model catalog**: hub pulls the live model list from the page
+  (`/loaders/list-models.data`) via a loader job — 35 models with
+  `catalogRevision` tracking and 60s TTL; ported `decodeTurboStream`,
+  `findValue`, `extractModels`, `kindOf` from the local bridge.
+- **Model skills summary**: every model carries `tier` (free/paid) and a Thai
+  `use_case` recommendation; free-quota routing keeps `gemini-3.1-flash-lite`
+  as default. Exposed via `/v1/models`, `/status`, and MCP `aipass_list_models`.
+- **Optional attachments**: MCP `aipass_chat` accepts `attachments`
+  (`[{type: image|file, data: dataURI, filename}]`) — the extension uploads
+  them to the AIPASS session before sending the prompt (verified: Gemini
+  correctly identified a 1×1 red PNG).
+- `aipass_status` now reports `last_chat_latency_ms`, `model_catalog`
+  revision/count, and `conversation_cached`.
+
+## [0.4.0] - 2026-09-16
+
+### Extensions (version bumps per AGENTS.md rule)
+- Chrome extension (`packages/core/aipass-bridge/extension/manifest.json` +
+  `release/chrome-extension/manifest.json`): **0.3.0 → 0.4.0** (token support,
+  remote cloud bridge; release folder synced with packages copy).
+- VS Code extension (`packages/vscode-extension`): **0.1.29 → 0.1.30**
+  (workspace rename; `extensionVersion` fallbacks in `src/extension.ts` and
+  `src/ui/aipassViewProvider.ts` synchronized).
+
+> **Deployed to production** at `https://aipass-web-bridge.taijustarrett417.workers.dev`
+> (Version 4a4a5a79) — end-to-end round-trip verified (MCP `aipass_chat` answered
+> via the SSE extension channel). Remaining: point the real Chrome extension popup
+> at the cloud URL (single UI step; see plan.md Phase 2).
+
+### Added
+- **Cloud Hub (`cloudflare/worker.js`)** modeled on gemini-web-bridge, adapted
+  to the legacy extension protocol (SSE `/ext/events` + POST
+  `/ext/chunk|done|error`) on a singleton Durable Object (`ExtHub`): OpenAI
+  `/v1/chat/completions` with **SSE streaming**, **remote MCP server** (`/mcp`,
+  JSON-RPC 2.0 — tools `aipass_chat`, `aipass_list_models`, `aipass_status`),
+  public `/` health dashboard, and G2 fail-fast (503, zero mocks).
+- **Two-role auth** matching the deployed secrets: `BRIDGE_SECRET` for the
+  extension channel, `CLIENT_API_KEY` for API/MCP clients (both set in the
+  Workers dashboard 2026-09-12; deployed at
+  `aipass-web-bridge.taijustarrett417.workers.dev`).
+- **Extension remote-bridge support**: `x-bridge-token` header on every request
+  (`background.js`), Bridge-token field + save/load in popup.
+- **`plan.md`**: full adaptation plan — tier routing (node6 Tier 0/1, aipass
+  Tier 2, gemini-web-bridge sibling), guardrails G1-G5 adoption table, Hermes
+  provider + remote MCP config examples in client-configs.md style.
+- **`scripts/recovery-rename.sh`**: post-rename recovery (old-path symlink,
+  reference updates, bridge/orchestrator restart, test verification).
+
+### Changed
+- Project folder renamed `aipass-web-bridge` → `aipass-web-bridge`; the old path
+  is restored as a symlink by the recovery script. Some in-repo references
+  still carry the old name until the script runs (see HANDOFF.md blocker).
+
 ## [0.3.0] - 2026-09-13
 
 ### Added

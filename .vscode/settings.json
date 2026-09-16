@@ -9,11 +9,11 @@
             "approve": true,
             "matchCommandLine": true
         },
-        "/^cd /Users/kimlenglim/Project/aipass-dev-suite/packages/vscode-extension && \\(command -v magick >/dev/null && magick -background none -density 256 media/icon\\.svg -resize 128x128 media/icon\\.png\\) \\|\\| \\(command -v convert >/dev/null && convert -background none -density 256 media/icon\\.svg -resize 128x128 media/icon\\.png\\) \\|\\| python3 - <<'PY'\nfrom pathlib import Path\nimport subprocess, sys\nsvg = Path\\('media/icon\\.svg'\\)\nout = Path\\('media/icon\\.png'\\)\ntry:\n    import cairosvg\n    cairosvg\\.svg2png\\(url=str\\(svg\\), write_to=str\\(out\\), output_width=128, output_height=128\\)\n    print\\('converted via cairosvg'\\)\nexcept Exception as e:\n    print\\('NO_CONVERTER', e\\)\n    raise SystemExit\\(1\\)\nPY\nls -l media/icon\\.png$/": {
+        "/^cd /Users/kimlenglim/Project/aipass-web-bridge/packages/vscode-extension && \\(command -v magick >/dev/null && magick -background none -density 256 media/icon\\.svg -resize 128x128 media/icon\\.png\\) \\|\\| \\(command -v convert >/dev/null && convert -background none -density 256 media/icon\\.svg -resize 128x128 media/icon\\.png\\) \\|\\| python3 - <<'PY'\nfrom pathlib import Path\nimport subprocess, sys\nsvg = Path\\('media/icon\\.svg'\\)\nout = Path\\('media/icon\\.png'\\)\ntry:\n    import cairosvg\n    cairosvg\\.svg2png\\(url=str\\(svg\\), write_to=str\\(out\\), output_width=128, output_height=128\\)\n    print\\('converted via cairosvg'\\)\nexcept Exception as e:\n    print\\('NO_CONVERTER', e\\)\n    raise SystemExit\\(1\\)\nPY\nls -l media/icon\\.png$/": {
             "approve": true,
             "matchCommandLine": true
         },
-        "/^cd /Users/kimlenglim/Project/aipass-dev-suite/packages/vscode-extension && /opt/homebrew/bin/python3 - <<'PY'\nfrom pathlib import Path\ntry:\n    import cairosvg\n    out = Path\\('media/icon\\.png'\\)\n    cairosvg\\.svg2png\\(url='media/icon\\.svg', write_to=str\\(out\\), output_width=128, output_height=128\\)\n    print\\('created', out\\.exists\\(\\), out\\.stat\\(\\)\\.st_size\\)\nexcept Exception as e:\n    print\\('ERROR', type\\(e\\)\\.__name__, e\\)\n    raise\nPY\nfile media/icon\\.png && ls -l media/icon\\.png$/": {
+        "/^cd /Users/kimlenglim/Project/aipass-web-bridge/packages/vscode-extension && /opt/homebrew/bin/python3 - <<'PY'\nfrom pathlib import Path\ntry:\n    import cairosvg\n    out = Path\\('media/icon\\.png'\\)\n    cairosvg\\.svg2png\\(url='media/icon\\.svg', write_to=str\\(out\\), output_width=128, output_height=128\\)\n    print\\('created', out\\.exists\\(\\), out\\.stat\\(\\)\\.st_size\\)\nexcept Exception as e:\n    print\\('ERROR', type\\(e\\)\\.__name__, e\\)\n    raise\nPY\nfile media/icon\\.png && ls -l media/icon\\.png$/": {
             "approve": true,
             "matchCommandLine": true
         },
@@ -23,7 +23,7 @@
         },
         "code": true,
         "set": true,
-        "/^set -e\nosascript -e 'tell application \"Visual Studio Code\" to quit' >/dev/null 2>&1 \\|\\| true\nfor i in 1 2 3 4 5; do\n  if ! pgrep -f '/Visual Studio Code\\.app/' >/dev/null 2>&1; then break; fi\n  osascript -e 'tell application \"Visual Studio Code\" to quit' >/dev/null 2>&1 \\|\\| true\ndone\nopen -a \"Visual Studio Code\" --args /Users/kimlenglim/Project/aipass-dev-suite\nprintf 'VS Code restarted with workspace\\\\n'$/": {
+        "/^set -e\nosascript -e 'tell application \"Visual Studio Code\" to quit' >/dev/null 2>&1 \\|\\| true\nfor i in 1 2 3 4 5; do\n  if ! pgrep -f '/Visual Studio Code\\.app/' >/dev/null 2>&1; then break; fi\n  osascript -e 'tell application \"Visual Studio Code\" to quit' >/dev/null 2>&1 \\|\\| true\ndone\nopen -a \"Visual Studio Code\" --args /Users/kimlenglim/Project/aipass-web-bridge\nprintf 'VS Code restarted with workspace\\\\n'$/": {
             "approve": true,
             "matchCommandLine": true
         }

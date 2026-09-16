@@ -119,7 +119,7 @@ async function startBridgeServer(
 
 export function activate(context: vscode.ExtensionContext) {
   const output = vscode.window.createOutputChannel('AiPASS');
-  const extensionVersion = String(context.extension?.packageJSON?.version || '0.1.29');
+  const extensionVersion = String(context.extension?.packageJSON?.version || '0.1.30');
   const provider = new AipassViewProvider(
     context.extensionUri,
     getClient,

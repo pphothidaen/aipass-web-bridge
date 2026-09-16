@@ -227,6 +227,10 @@ async function render() {
 
   // Don't clobber the field while it is being edited.
   if (document.activeElement !== $('url')) $('url').value = bridge;
+  if (document.activeElement !== $('token')) {
+    const { bridgeToken: savedToken } = await chrome.storage.local.get('bridgeToken');
+    $('token').value = savedToken || '';
+  }
 }
 
 /* ------------------------------------------------------------------- wiring */
@@ -251,7 +255,8 @@ $('model').addEventListener('change', async () => {
 $('save').addEventListener('click', async () => {
   const url = $('url').value.trim().replace(/\/+$/, '');
   if (!/^https?:\/\/.+/i.test(url)) return toast('Enter a full http:// URL');
-  await chrome.storage.local.set({ bridgeUrl: url });
+  const token = $('token').value.trim();
+  await chrome.storage.local.set({ bridgeUrl: url, bridgeToken: token });
   await chrome.runtime.sendMessage({ type: 'reconnect' }).catch(() => {});
   bridge = url;
   modelSignature = '';

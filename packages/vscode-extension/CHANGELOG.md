@@ -1,3 +1,9 @@
+## [0.1.30]
+
+- Workspace/project renamed `aipass-dev-suite` → `aipass-web-bridge`; version
+  fallbacks synchronized with `package.json` (no functional change to the
+  extension host code).
+
 # Changelog
 
 All notable changes to **AiPASS Dev Suite** are documented here.

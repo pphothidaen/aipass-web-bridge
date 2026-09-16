@@ -1,7 +1,7 @@
 {
   "name": "aipass-vscode-extension",
   "displayName": "AiPASS Dev Suite",
-  "version": "0.1.29",
+  "version": "0.1.30",
   "icon": "media/icon.png",
   "publisher": "pphothidaen",
   "description": "Use de.aipass.net from VS Code with a local bridge, project context controls, and an integrated chat sidebar.",
@@ -10,13 +10,13 @@
     "url": "https://github.com/pphothidaen/"
   },
   "license": "MIT",
-  "homepage": "https://github.com/pphothidaen/aipass-dev-suite#readme",
+  "homepage": "https://github.com/pphothidaen/aipass-web-bridge#readme",
   "bugs": {
-    "url": "https://github.com/pphothidaen/aipass-dev-suite/issues"
+    "url": "https://github.com/pphothidaen/aipass-web-bridge/issues"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/pphothidaen/aipass-dev-suite.git"
+    "url": "https://github.com/pphothidaen/aipass-web-bridge.git"
   },
   "categories": [
     "Other",

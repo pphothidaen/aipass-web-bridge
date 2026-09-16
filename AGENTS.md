@@ -6,6 +6,15 @@
   - You MUST bump the version number in `package.json` (and `manifest.json` for extension releases).
   - Use Semantic Versioning (`MAJOR.MINOR.PATCH`): increment `PATCH` for bug fixes, refinements, and UI updates; `MINOR` for new features or capabilities; `MAJOR` for breaking changes.
   - Keep default version strings in source code (e.g., `extensionVersion` in `packages/vscode-extension/src/extension.ts` and `src/ui/aipassViewProvider.ts`) synchronized with `package.json`.
+  - **Both extensions must be bumped together with any change that touches them:**
+    - Chrome extension: `packages/core/aipass-bridge/extension/manifest.json` AND the
+      deployed copy `release/chrome-extension/manifest.json` (keep the two folders in
+      sync — copy changed files into `release/chrome-extension/` on every change).
+    - VS Code extension: `packages/vscode-extension/package.json` + the
+      `extensionVersion` fallbacks in `src/extension.ts` and `src/ui/aipassViewProvider.ts`.
+  - Per user request (2026-09-16): หากมีการเปลี่ยนแปลงอะไรก็ตามที่กระทบ VS Code
+    extension หรือ Chrome extension ต้องอัปเดต version ของ extension นั้นทันที
+    พร้อม release notes ทุกครั้ง
 - **Release Notes / Changelog**:
   - You MUST add or update release notes in the corresponding `CHANGELOG.md` (e.g., `packages/vscode-extension/CHANGELOG.md`) for every modified version.
   - Document all user-facing changes, bug fixes, UI adjustments, and tool enhancements under standard sections (`### Added`, `### Changed`, `### Fixed`, `### Removed`).

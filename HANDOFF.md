@@ -1,6 +1,147 @@
 # Secretary implementation handoff
 
-Updated: 2026-09-14 Asia/Bangkok
+Updated: 2026-09-17 Asia/Bangkok
+
+## ⚡ LATEST CHECKPOINT — Phase 5: Performance + Dynamic Catalog + Model Skills + Attachments (2026-09-17)
+
+All tickets below are DONE with live evidence on production
+(`https://aipass-web-bridge.taijustarrett417.workers.dev`, Version f88926db+).
+
+### ATOMIC_TICKET — Phase 5
+
+| Ticket | Task | Status | Evidence |
+|--------|------|--------|----------|
+| P5-01 | Latency analysis: ทำไมช้า — สร้าง conversation ใหม่ทุก chat + ไม่มี pre-warm | ✅ | analysis in worker comments + plan.md T1 |
+| P5-02 | Conversation cache + pre-warm on extension connect + 404 auto-recreate/retry | ✅ | `aipass_status`: `conversation_cached: true`, `last_chat_latency_ms: 3030`; wall time 4–5s (เดิม ~15s) |
+| P5-03 | Dynamic model catalog: loader job `/loaders/list-models.data` + port `decodeTurboStream`/`findValue`/`extractModels`/`kindOf` | ✅ | `/v1/models` `catalogRevision` grows, **35 models** live; TTL 60s |
+| P5-04 | Model skill summary (T3): tier (free/paid) + use_case ภาษาไทยต่อโมเดล; free-quota routing (default = flash-lite ฟรี) | ✅ | `aipass_list_models` + `/v1/models` fields `free/tier/use_case` |
+| P5-05 | Optional attachments: `aipass_chat` รับ `attachments[{type:image/file, data:data-URI, filename}]` → page upload → Gemini อ่านได้ | ✅ | 1×1 red PNG → "ภาพที่คุณส่งมาเป็นสีแดงล้วนครับ" |
+| P5-06 | Hermes Agent (Mac) end-to-end via MCP | ✅ | `hermes mcp test` Connected 3 tools; `hermes -z` เรียก `aipass_list_models`+`aipass_chat` ได้ผลจริง (Gemini ตอบ "ผมคือโมเดล Gemini") |
+| P5-07 | Docs: plan.md/HANDOFF.md/CHANGELOG.md + AGENTS.md version-sync rule (Chrome 0.4.0 / VS Code 0.1.30) | ✅ | files updated |
+
+### Key fixes landed in P5
+
+- CORS preflight was rejected by auth (401) → SSE GET never fired; preflight is
+  now answered at the edge before auth.
+- `/ext/loader` route was missing → create/loader replies 404'd; now routed.
+- `extReady` never set true; orphan method shell (build failure); dashboard
+  Variables wiped by deploy → secrets re-created via wrangler.
+
+### Latency numbers (measured 2026-09-17)
+
+| Scenario | Wall time | Server `last_chat_latency_ms` |
+|---|---|---|
+| Cold (deploy + DO reset) | ~120s until extension alarm reconnects | — |
+| First chat after connect | ~5s | ~3,030ms |
+| Warm (conversation cached) | 4–5s | ~3,030ms |
+
+Remaining latency is the AIPASS upstream itself (Gemini first token + stream) —
+the hub overhead is now one cached-conversation reuse (no create round-trip).
+
+## ⏭ NEXT PHASE — Phase 6: node6 Hermes deployment + CI/CD (Definition of Done)
+
+Planned atomic tickets (NOT started — do not claim done):
+
+| Ticket | Task | Notes |
+|--------|------|-------|
+| P6-01 | Deploy this Worker via CI (GitHub Actions: `wrangler deploy` on main, `node --check` + curl smoke gate) | needs repo remote + CF API token secret |
+| P6-02 | node6: install/point Hermes provider `aipass-web-bridge` (same MCP URL) — Tailscale-only if private | node6 = Ubuntu server per node6-hermes docs |
+| P6-03 | node6: Smart Router tier-2 integration — classify → flash-lite (free) vs paid | per tier2_router_comparison.md Option C |
+| P6-04 | Automated test: `hermes mcp test` + `aipass_chat` probe script in CI/cron | reuse test_c10_c11 probe pattern |
+| P6-05 | DoD gate: latency < 8s warm, CONNECTED ≥ 99%/24h (tail), 0 mock responses | fails → rollback wrangler versions |
+
+---
+
+## Rename + Cloudflare hub checkpoint (2026-09-16 — superseded by Phase 5 above)
+
+Read this section FIRST. It supersedes nothing below — the 2026-09-14 Protocol
+v2 checkpoint remains an **open, unfinished work item** (151/1 tests, 720p
+fixture mismatch unresolved). Sections are chronological; newest on top.
+
+### ✅ Blocker RESOLVED — deployment complete (2026-09-16 เย็น)
+
+Shell กลับมาทำงาน (สร้าง placeholder dir ที่ path เดิมคืนเพื่อให้ harness spawn
+shell ได้) แล้ว execute จบทั้งหมด:
+
+- ✅ `scripts/recovery-rename.sh` รันผ่าน: symlink old path → แก้ชื่อค้างทุกไฟล์
+  → restart bridge 8787 + orchestrator 8788 (HTTP 200) → tests ผ่านหมด
+  (C9 8/8, isolated OK, regression 3/3)
+- ✅ **Deployed**: `https://aipass-web-bridge.taijustarrett417.workers.dev`
+  (Version 4a4a5a79) — แทนที่ Hello World placeholder; secrets ตั้งผ่าน wrangler
+  (`BRIDGE_SECRET`, `CLIENT_API_KEY`) เพราะ dashboard Variables เดิมโดน deploy ทับ
+- ✅ Auth ยืนยันแล้ว: ไม่มี token → 401 / Bearer ถูก → 200 / `/ext/*` ไม่มี token → 401
+- ✅ `/mcp` tools/list ครบ 3 tools; aipass_chat offline → fail-fast 503 (G2, ไม่มี mock)
+- ✅ **End-to-end round-trip ผ่าน**: simulated extension (SSE `/ext/events` +
+  chunk/done postback) → MCP `aipass_chat` ตอบ "bridge ใช้งานได้จริง - ทดสอบผ่าน"
+- บั๊กที่พบและแก้ระหว่างทาง: orphan method shell ใน worker.js (syntax error ตอน
+  deploy แรก), `extReady` ไม่เคยถูก set true (SSE เชื่อมแต่ hub ว่า offline),
+  wrangler deploy ครั้งแรกเงียบ ๆ ไม่สำเร็จ
+
+### ⏳ เหลือขั้นเดียว (UI ใน Chrome — popup ของ user แตะไม่ได้จาก CLI)
+
+1. `chrome://extensions/` → reload extension (`packages/core/aipass-bridge/extension/`)
+2. popup → Advanced → Bridge URL `https://aipass-web-bridge.taijustarrett417.workers.dev`
+   + Bridge token `aipass-bridge-secret-2026` → Save & reconnect
+3. ตรวจ: `curl -s https://aipass-web-bridge.taijustarrett417.workers.dev/status`
+   → ต้องได้ `"extension": "CONNECTED"`
+4. ทดสอบคำถามจริงผ่าน AIPASS session:
+   `curl -s -X POST https://aipass-web-bridge.taijustarrett417.workers.dev/mcp -H "Authorization: Bearer hermes-secret-key-2026" -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"aipass_chat","arguments":{"prompt":"ตอบสั้นๆ: bridge ใช้งานได้จริงหรือไม่","model":"gemini-3.1-flash-lite"}}}'`
+   หรือผ่าน Hermes: `hermes -z "เรียก mcp tool aipass_status ของ aipass-web-bridge แล้วสรุปสถานะ"`
+
+### Done in this slice (code verified by Read/Write only — shell was down)
+
+1. Folder renamed to `/Users/kimlenglim/Project/aipass-web-bridge` + old path
+   restored as symlink (by the recovery script).
+2. `cloudflare/worker.js` — Cloud Hub modeled on gemini-web-bridge but using
+   OUR extension protocol (SSE `/ext/events` + POST `/ext/chunk|done|error`):
+   - Durable Object `ExtHub` (singleton) — fixes the original template's
+     single-isolate global-socket flaw
+   - `/v1/chat/completions`: JSON + **SSE streaming** (`stream: true`)
+   - `/mcp`: JSON-RPC 2.0 (initialize / tools/list / tools/call) — tools:
+     `aipass_chat`, `aipass_list_models`, `aipass_status`
+   - `/` + `/status`: public health dashboard; G2 fail-fast (503, no mocks)
+   - Two-role auth matching the secrets ALREADY set in the dashboard
+     (2026-09-12): `BRIDGE_SECRET` → `/ext/*`, `CLIENT_API_KEY` → API/MCP
+   - Deployment name: `aipass-web-bridge.taijustarrett417.workers.dev`
+3. Extension cloud-ready: `background.js` sends `x-bridge-token` header on
+   every request (SSE + POST); `popup.html` has Bridge-token field;
+   `popup.js` saves/loads it.
+4. `plan.md` — full adaptation plan: tier routing (0/1 node6, 2 aipass),
+   guardrails G1-G5 adoption table, Hermes config examples in the
+   `gemini-web-bridge/docs/client-configs.md` style.
+5. `scripts/recovery-rename.sh` — the recovery script above.
+
+### Required next actions (in order)
+
+1. Run the recovery script; confirm all test suites pass from the new path.
+2. `cd cloudflare && npx wrangler deploy` (worker now has MCP + streaming),
+   then verify: `curl -H "Authorization: Bearer $CLIENT_API_KEY" \
+   https://aipass-web-bridge.taijustarrett417.workers.dev/status`.
+3. Extension popup: URL = workers.dev, token = BRIDGE_SECRET → `/status`
+   must show extension CONNECTED.
+4. `~/.hermes/config.yaml`: add provider `aipass-web-bridge` + remote
+   `mcp_servers` entry (exact YAML in plan.md); test `hermes -z` and MCP
+   `tools/call aipass_chat`.
+5. Then resume the **2026-09-14 Protocol v2 checkpoint below** (its 151/1 test
+   state and 5 required next actions are still open).
+6. Bump version + CHANGELOG per AGENTS.md — done in this slice (0.3.0 →
+   **0.4.0**, CHANGELOG entry added). The 0.3.0 Protocol v2 entry from
+   2026-09-13 is preserved above.
+
+### Ecosystem placement (per node6-hermes/ROUTING_GUIDE.md)
+
+| Tier | Source | Our status |
+|---|---|---|
+| 0/1 | node6 OVMS 7B/14B (Smart Router 8006) | outside this repo |
+| 2 | **aipass-web-bridge**: local 8787 + Cloudflare hub | local ✅ / cloud code done, verify pending |
+| — | gemini-web-bridge (sibling) | used as the architectural template |
+
+Fallback chain target: classify → simple→node6, complex→cloud
+(aipass → gemini-web-bridge → agy → codex) — Option C in
+`node6-hermes/docs/tier2_router_comparison.md`; circuit breaker/rate-limit
+details in `node6-hermes/docs/aipass-bridge-security.md` (Phase 4-5 of plan.md).
+
+---
 
 ## Architecture v2 resume checkpoint (2026-09-14)
 
