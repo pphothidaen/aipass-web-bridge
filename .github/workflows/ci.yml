@@ -1,0 +1,54 @@
+name: ci
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Syntax check worker + extension
+        run: |
+          node --check cloudflare/worker.js
+          node --check packages/core/aipass-bridge/extension/background.js
+          node --check packages/core/aipass-bridge/extension/popup.js
+          python3 -m py_compile secretary.py
+      - name: Live smoke gate (prod must answer JSON, not Hello World)
+        run: |
+          ST=$(curl -s --max-time 15 https://aipass-web-bridge.taijustarrett417.workers.dev/status)
+          echo "$ST" | grep -q '"service": "aipass-web-bridge"' || (echo "PROD SMOKE FAILED: $ST" && exit 1)
+
+  deploy:
+    needs: smoke
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Guard — run only when CLOUDFLARE_API_TOKEN secret is set
+        id: guard
+        run: |
+          if [ -z "${{ secrets.CLOUDFLARE_API_TOKEN }}" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "CLOUDFLARE_API_TOKEN not set — skipping deploy (add it via gh secret set)"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Deploy worker
+        if: steps.guard.outputs.skip == 'false'
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          workingDirectory: cloudflare
+      - name: Post-deploy smoke
+        if: steps.guard.outputs.skip == 'false'
+        run: |
+          sleep 5
+          curl -s --max-time 15 https://aipass-web-bridge.taijustarrett417.workers.dev/status | grep -q '"ok": true' || (echo "POST-DEPLOY FAILED" && exit 1)
