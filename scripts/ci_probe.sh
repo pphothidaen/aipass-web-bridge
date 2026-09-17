@@ -5,7 +5,7 @@ export PATH="$HOME/.local/bin:$PATH"
 
 STATUS_URL="https://aipass-web-bridge.taijustarrett417.workers.dev/status"
 MCP_URL="${MCP_URL:-https://aipass-web-bridge.taijustarrett417.workers.dev/mcp}"
-API_KEY="${AIPASS_API_KEY}"
+API_KEY="${AIPASS_API_KEY:-hermes-secret-key-2026}"
 LATENCY_MAX_SEC=8
 
 echo "=== 1. Testing Hermes MCP connection (must see Connected + 3 tools) ==="

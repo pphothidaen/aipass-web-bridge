@@ -1,3 +1,17 @@
+## [0.5.1] - 2026-09-17
+
+### Fixed
+- **Chrome Extension `host_permissions`**: Added `https://*.workers.dev/*` to `manifest.json` (both source and release copy) so Chrome MV3 permits fetch and SSE connections to Cloudflare Worker hubs.
+- **Durable Object SSE Abort Race Condition**: In `cloudflare/worker.js`, guarded `request.signal.addEventListener("abort")` so that a disconnecting/cycling socket only clears `extWriter` and `extReady` if it matches the current active writer instance, preventing spurious drops during reconnects.
+- **Bridge Token Fallback**: Added `DEFAULT_REMOTE_TOKEN` (`aipass-bridge-secret-2026`) fallback in `background.js` and `popup.js` when connecting to `.workers.dev` endpoints if the token field was left blank.
+- **Protocol v2 Channel Routing**: Restricted `connectBridge()` to local host origins (`http://127.0.0.1` / `http://localhost`) to eliminate 404 spam against Cloudflare Workers, and added graceful DO route aliases for `/bridge` and `/bridge/message`.
+- **Cloudflare Worker Deployment**: Deployed and activated `aipass-web-bridge` on Cloudflare with configured secrets (`BRIDGE_SECRET` and `CLIENT_API_KEY`).
+- **Hermes Provider Config**: Synchronized `~/.hermes/config.yaml` provider `aipass-web-bridge` `base_url` to `https://aipass-web-bridge.taijustarrett417.workers.dev/v1`.
+
+### Changed
+- Bumped Chrome extension version to `0.5.1` (both `packages/core/aipass-bridge/extension/` and `release/chrome-extension/` kept in exact synchronization).
+- Bumped project version in `package.json` to `0.5.1`.
+
 ## [0.5.0] - 2026-09-17
 
 ### Added

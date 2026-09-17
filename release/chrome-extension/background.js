@@ -82,10 +82,17 @@ const bridgeUrl = async () => {
 
 // Optional shared secret for remote bridges (e.g. Cloudflare Worker hub).
 // Sent as a header on every request; the local bridge ignores it.
+const DEFAULT_REMOTE_TOKEN = 'aipass-bridge-secret-2026';
+
 const bridgeToken = async () => {
   try {
     const res = await chrome.storage.local.get('bridgeToken');
-    return res?.bridgeToken || '';
+    if (res?.bridgeToken && String(res.bridgeToken).trim()) return String(res.bridgeToken).trim();
+    const url = await bridgeUrl();
+    if (url.includes('.workers.dev') || url.includes('aipass-web-bridge') || url.includes('aipass-bridge')) {
+      return DEFAULT_REMOTE_TOKEN;
+    }
+    return '';
   } catch {
     return '';
   }
@@ -93,8 +100,9 @@ const bridgeToken = async () => {
 
 async function authHeaders() {
   const token = await bridgeToken();
-  return token ? { 'content-type': 'application/json', 'x-bridge-token': token }
-               : { 'content-type': 'application/json' };
+  const safeToken = token ? String(token).replace(/[^\x00-\xFF]/g, '') : '';
+  return safeToken ? { 'content-type': 'application/json', 'x-bridge-token': safeToken }
+                   : { 'content-type': 'application/json' };
 }
 
 async function post(path, body) {
@@ -263,10 +271,12 @@ async function connect() {
 
   try {
     const token = await bridgeToken();
+    const safeToken = token ? String(token).replace(/[^\x00-\xFF]/g, '') : '';
+    const headers = safeToken
+      ? { accept: 'text/event-stream', 'x-bridge-token': safeToken }
+      : { accept: 'text/event-stream' };
     const res = await fetch(`${await bridgeUrl()}/ext/events`, {
-      headers: token
-        ? { accept: 'text/event-stream', 'x-bridge-token': token }
-        : { accept: 'text/event-stream' },
+      headers,
       signal,
     });
     if (!res.ok || !res.body) throw new Error(`bridge responded ${res.status}`);
@@ -351,6 +361,12 @@ async function handleBridgeEvent(name, data) {
 }
 
 async function connectBridge() {
+  const url = await bridgeUrl();
+  // Protocol v2 /bridge channel is for local stateful bridge (127.0.0.1 or localhost);
+  // Cloudflare worker hub uses /ext/events (handled by connect()).
+  if (!url.startsWith('http://127.0.0.1') && !url.startsWith('http://localhost')) {
+    return;
+  }
   if (bridgeController) return;
   bridgeController = new AbortController();
   const signal = bridgeController.signal;

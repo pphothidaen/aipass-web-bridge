@@ -230,6 +230,9 @@ async function render() {
   if (document.activeElement !== $('token')) {
     const { bridgeToken: savedToken } = await chrome.storage.local.get('bridgeToken');
     $('token').value = savedToken || '';
+    if (!savedToken && (bridge.includes('.workers.dev') || bridge.includes('aipass-web-bridge'))) {
+      $('token').placeholder = 'aipass-bridge-secret-2026 (default)';
+    }
   }
 }
 
@@ -255,7 +258,10 @@ $('model').addEventListener('change', async () => {
 $('save').addEventListener('click', async () => {
   const url = $('url').value.trim().replace(/\/+$/, '');
   if (!/^https?:\/\/.+/i.test(url)) return toast('Enter a full http:// URL');
-  const token = $('token').value.trim();
+  let token = $('token').value.trim();
+  if (!token && (url.includes('.workers.dev') || url.includes('aipass-web-bridge'))) {
+    token = 'aipass-bridge-secret-2026';
+  }
   await chrome.storage.local.set({ bridgeUrl: url, bridgeToken: token });
   await chrome.runtime.sendMessage({ type: 'reconnect' }).catch(() => {});
   bridge = url;

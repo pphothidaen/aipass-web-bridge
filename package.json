@@ -1,7 +1,7 @@
 {
   "name": "aipass-web-bridge",
   "private": true,
-  "version": "0.5.0",
+  "version": "0.5.1",
   "workspaces": [
     "packages/shared",
     "packages/vscode-extension"
