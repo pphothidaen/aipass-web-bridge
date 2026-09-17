@@ -104,16 +104,7 @@ mcp_servers:
 
 ## สถานะปัจจุบัน (2026-09-17 เช้า)
 
-### Phase 6 — Orchestrator dispatch (2026-09-17 09:00)
-| Ticket | Task | Status | Worker |
-|--------|------|--------|--------|
-| P6-01a | GitHub private repo + push master | ✅ | Mac |
-| P6-01b | CI workflow + smoke gate | ✅ | Mac |
-| P6-01c | Enable real deploy from CI | ⏳ | ต้อง `gh secret set CLOUDFLARE_API_TOKEN` |
-| P6-02 | node6 Hermes provider | ⏳ | SSH reachable (server rebooted, OVMS 8006 coming up) |
-| P6-03 | Smart Router tier-2 | ⏳ | agy1 dispatched (--print) |
-| P6-04 | Automated probe (aipass_chat) | ⏳ | agy3 dispatched (--print) |
-| P6-05 | DoD gate | ⏳ | agy2 dispatched — scripts/dod_gate.sh สร้างแล้ว |
+### Phase 6 — node6 Hermes + CI/CD (✅ DONE — 2026-09-17)
 
 ### Live status (ตรวจผ่าน MCP aipass_status)
 - Extension: **CONNECTED** ✅
