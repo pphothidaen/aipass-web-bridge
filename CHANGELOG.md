@@ -1,3 +1,8 @@
+## [0.5.2] - 2026-09-17
+
+### Fixed
+- **Model Refresh Timeout**: Added a 3-second `Promise.race` timeout to `refreshModels()` in `cloudflare/worker.js` so `GET /v1/models` (invoked when OpenAI-compatible clients like Chatbox click "Check" or "Fetch") resolves immediately using fallback models if the extension loader takes longer than 3 seconds.
+
 ## [0.5.1] - 2026-09-17
 
 ### Fixed

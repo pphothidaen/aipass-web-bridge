@@ -296,7 +296,10 @@ export class ExtHub {
     if (this.modelRefresh) return this.modelRefresh;
     this.modelRefresh = (async () => {
       try {
-        const raw = await this.runLoaderJob(MODELS_LOADER_URL);
+        const raw = await Promise.race([
+          this.runLoaderJob(MODELS_LOADER_URL),
+          new Promise((_, reject) => setTimeout(() => reject(new Error("loader timeout")), 3000)),
+        ]);
         const models = extractModels(decodeTurboStream(raw));
         if (models.length) {
           this.modelCatalog = models;
