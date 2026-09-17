@@ -37,8 +37,11 @@ Repo: **github.com/pphothidaen/aipass-web-bridge (private)** · branch `master`
   commits) — อย่าลบ .git ข้างใน; CI ตรวจ release copy (`release/chrome-extension/`) แทน
 - prod ปัจจุบัน: Version b7312f5-era worker, extension CONNECTED, catalog rev 7
   (**36 models**: 28 chat, 4 image, 3 video, 1 music, 3 research; 1 free + 35 paid)
-- node6 รีบูตเมื่อ ~09:00 (uptime 0min) — OVMS 8001/8003/8006 ลงไปต้องรีสตาร์ต
+- node6 SSH ได้ตั้งแต่ ~09:00 (server rebooted 0min) — OVMS 8001/8003/8006 ลงไปต้องรีสตาร์ต
   Tailscale domain: node6.taildab731.ts.net
+- ✅ **Hermes Agent บน node6 ทำงานได้** — เพิ่ม providers/aipass-web-bridge + mcp_servers แล้ว (เหมือน Mac)
+  - aipass-web-bridge MCP: Connected (1177ms), 3 tools
+  - gemini-web-bridge MCP: Connected (868ms), 8 tools
 - secrets prod: BRIDGE_SECRET / CLIENT_API_KEY (ค่าดูได้ใน Cloudflare dashboard;
   ใช้ใน docs เป็น aipass-bridge-secret-2026 / hermes-secret-key-2026)
 - อย่า push secrets ลง repo — ปัจจุบันใช้ผ่าน gh secret / wrangler เท่านั้น
