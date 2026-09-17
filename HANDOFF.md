@@ -9,7 +9,11 @@ Updated: 2026-09-17 (10:00) Asia/Bangkok
 - ✅ DoD gate script created: `scripts/dod_gate.sh` (by agy2)
 - ✅ aipass production: CONNECTED, catalog rev 7 (35 models)
 - ✅ **gemini-web-bridge MCP: READY** — extension CONNECTED_AND_READY, 7 models (4 verified), default gemini-web-thinking
-- ⏳ agy1, agy3 terminal results pending
+- ✅ agy1, agy2, agy3 เสร็จแล้ว:
+  - `packages/core/aipass-bridge/smart_router.py` (commit a04f97b — submodule)
+  - `scripts/ci_probe.sh` (commit 1a20c8e)
+  - `scripts/dod_gate.sh` (commit 31e8b05)
+- ⏳ User action: `gh secret set CLOUDFLARE_API_TOKEN` สำหรับ P6-01c
 
 Repo: **github.com/pphothidaen/aipass-web-bridge (private)** · branch `master`
 
