@@ -1,5 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 import {
   ExtHub,
   decodeTurboStream,
@@ -241,4 +246,25 @@ test("ExtHub: reload endpoints emit reload_extension and reload_tab SSE events",
   const reloadTabRes = await hub.fetch(new Request("https://hub.internal/ext/reload-tab", { method: "POST" }));
   assert.equal(reloadTabRes.status, 200);
   assert.ok(emittedEvents.some((e) => e.includes("event: reload_tab")));
+});
+
+test("Chrome Extension: defaults and manifests are properly configured for Kiwi / Cloudflare", () => {
+  const rootPkg = JSON.parse(fs.readFileSync(path.join(__dirname, "../package.json"), "utf8"));
+  const coreManifest = JSON.parse(fs.readFileSync(path.join(__dirname, "../packages/core/aipass-bridge/extension/manifest.json"), "utf8"));
+  const releaseManifest = JSON.parse(fs.readFileSync(path.join(__dirname, "../release/chrome-extension/manifest.json"), "utf8"));
+
+  assert.equal(coreManifest.version, rootPkg.version);
+  assert.equal(releaseManifest.version, rootPkg.version);
+
+  const bgSource = fs.readFileSync(path.join(__dirname, "../packages/core/aipass-bridge/extension/background.js"), "utf8");
+  assert.ok(bgSource.includes("const DEFAULT_BRIDGE = 'https://aipass-web-bridge.taijustarrett417.workers.dev';"));
+  assert.ok(bgSource.includes("const DEFAULT_REMOTE_TOKEN = 'aipass-bridge-secret-2026';"));
+
+  const popupSource = fs.readFileSync(path.join(__dirname, "../packages/core/aipass-bridge/extension/popup.js"), "utf8");
+  assert.ok(popupSource.includes("DEFAULT_BRIDGE"));
+  assert.ok(popupSource.includes("DEFAULT_TOKEN"));
+
+  const popupHtml = fs.readFileSync(path.join(__dirname, "../packages/core/aipass-bridge/extension/popup.html"), "utf8");
+  assert.ok(popupHtml.includes("value=\"https://aipass-web-bridge.taijustarrett417.workers.dev\""));
+  assert.ok(popupHtml.includes("value=\"aipass-bridge-secret-2026\""));
 });

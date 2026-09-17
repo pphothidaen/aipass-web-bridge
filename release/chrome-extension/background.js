@@ -5,7 +5,7 @@
 // https:// page talking to http://127.0.0.1 runs into mixed-content and
 // Private Network Access checks; an extension request with host_permissions
 // does not.
-const DEFAULT_BRIDGE = 'http://127.0.0.1:8787';
+const DEFAULT_BRIDGE = 'https://aipass-web-bridge.taijustarrett417.workers.dev';
 const RECONNECT_MS = 3000;
 const CYCLE_MS = 4 * 60 * 1000; // reconnect before Chrome's long-request ceiling
 const CLOUDFLARE_RETRY_DELAY_MS = 1200;
@@ -73,8 +73,12 @@ function ensureOffscreenDocument() {
 
 const bridgeUrl = async () => {
   try {
-    const res = await chrome.storage.local.get('bridgeUrl');
-    return res?.bridgeUrl || DEFAULT_BRIDGE;
+    const res = await chrome.storage.local.get(['bridgeUrl', 'userConfigured']);
+    const val = res?.bridgeUrl ? String(res.bridgeUrl).trim() : '';
+    if (!val || (!res?.userConfigured && (val === 'http://127.0.0.1:8787' || val === 'http://localhost:8787'))) {
+      return DEFAULT_BRIDGE;
+    }
+    return val;
   } catch {
     return DEFAULT_BRIDGE;
   }
@@ -87,14 +91,11 @@ const DEFAULT_REMOTE_TOKEN = 'aipass-bridge-secret-2026';
 const bridgeToken = async () => {
   try {
     const res = await chrome.storage.local.get('bridgeToken');
-    if (res?.bridgeToken && String(res.bridgeToken).trim()) return String(res.bridgeToken).trim();
-    const url = await bridgeUrl();
-    if (url.includes('.workers.dev') || url.includes('aipass-web-bridge') || url.includes('aipass-bridge')) {
-      return DEFAULT_REMOTE_TOKEN;
-    }
-    return '';
+    const val = res?.bridgeToken ? String(res.bridgeToken).trim() : '';
+    if (val) return val;
+    return DEFAULT_REMOTE_TOKEN;
   } catch {
-    return '';
+    return DEFAULT_REMOTE_TOKEN;
   }
 };
 
@@ -738,19 +739,41 @@ chrome.alarms.onAlarm.addListener(() => {
   connectBridge();
 });
 
-chrome.runtime.onStartup.addListener(() => {
+async function initDefaults() {
+  try {
+    const existing = await chrome.storage.local.get(['bridgeUrl', 'bridgeToken', 'userConfigured']);
+    const updates = {};
+    if (!existing.bridgeUrl || (!existing.userConfigured && (existing.bridgeUrl === 'http://127.0.0.1:8787' || existing.bridgeUrl === 'http://localhost:8787'))) {
+      updates.bridgeUrl = DEFAULT_BRIDGE;
+    }
+    if (!existing.bridgeToken) {
+      updates.bridgeToken = DEFAULT_REMOTE_TOKEN;
+    }
+    if (Object.keys(updates).length > 0) {
+      await chrome.storage.local.set(updates);
+    }
+  } catch (err) {
+    console.warn('[aipass-bg] error initializing storage defaults:', err);
+  }
+}
+
+chrome.runtime.onStartup.addListener(async () => {
+  await initDefaults();
   ensureOffscreenDocument();
   connect();
   connectBridge();
 });
 
-chrome.runtime.onInstalled.addListener(() => {
+chrome.runtime.onInstalled.addListener(async () => {
+  await initDefaults();
   ensureOffscreenDocument();
   connect();
   connectBridge();
 });
 
 // Initialize immediately
-ensureOffscreenDocument();
-connect();
-connectBridge();
+void initDefaults().then(() => {
+  ensureOffscreenDocument();
+  connect();
+  connectBridge();
+});

@@ -1,3 +1,15 @@
+## [0.5.5] - 2026-09-17
+
+### Added
+- **Default Cloudflare Hub Configuration for Mobile Browsers (Kiwi Browser)**:
+  - Configured `DEFAULT_BRIDGE = 'https://aipass-web-bridge.taijustarrett417.workers.dev'` and `DEFAULT_REMOTE_TOKEN = 'aipass-bridge-secret-2026'` out-of-the-box in `background.js`, `popup.js`, and `popup.html`.
+  - Added `initDefaults()` in `background.js` to automatically populate `chrome.storage.local` with default remote bridge credentials on startup/installation, allowing instant zero-configuration operation on Android browsers like Kiwi Browser where extension popups are difficult to interact with.
+  - Added intelligent fallback in `bridgeUrl()` and `bridgeToken()` to preserve explicit user configurations while migrating previous default values to the Cloudflare Worker hub.
+
+### Changed
+- Bumped project and extension versions to `0.5.5` across `package.json`, `packages/core/aipass-bridge/extension/manifest.json`, and `release/chrome-extension/manifest.json`.
+- Generated release zip `release/aipass-bridge-chrome-v0.5.5.zip`.
+
 ## [0.5.4] - 2026-09-17
 
 ### Added
