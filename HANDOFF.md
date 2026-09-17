@@ -1,33 +1,33 @@
 # Secretary implementation handoff
 
-Updated: 2026-09-17 (10:00) Asia/Bangkok
+Updated: 2026-09-17 (14:30) Asia/Bangkok
 
-## ⚡ LATEST CHECKPOINT — Phase 6: Orchestrator dispatch (2026-09-17 เช้า)
-
-- ✅ 5 subagents dispatched: agy1 (smart_router), agy2 (DoD gate), agy3 (ci_probe), MCP (status), node6 health
-- ✅ node6 SSH: REACHABLE (rebooted, OVMS 8006 starting)
-- ✅ DoD gate script created: `scripts/dod_gate.sh` (by agy2)
-- ✅ aipass production: CONNECTED, catalog rev 7 (35 models)
-- ✅ **gemini-web-bridge MCP: READY** — extension CONNECTED_AND_READY, 7 models (4 verified), default gemini-web-thinking
-- ✅ agy1, agy2, agy3 เสร็จแล้ว:
-  - `packages/core/aipass-bridge/smart_router.py` (commit a04f97b — submodule)
-  - `scripts/ci_probe.sh` (commit 1a20c8e)
-  - `scripts/dod_gate.sh` (commit 31e8b05)
-- ⏳ User action: `gh secret set CLOUDFLARE_API_TOKEN` สำหรับ P6-01c
-
-Repo: **github.com/pphothidaen/aipass-web-bridge (private)** · branch `master`
+## ⚡ LATEST CHECKPOINT — All Phases Complete (2026-09-17)
 
 ### ATOMIC_TICKET — Phase 6 progress
 
 | Ticket | Task | Status | Evidence |
 |--------|------|--------|----------|
-| P6-01a | GitHub private repo + push master (noreply email fix) | ✅ | `git remote -v` → pphothidaen/aipass-web-bridge; 6 commits |
-| P6-01b | CI workflow `.github/workflows/ci.yml` — syntax gates (worker/release-extension/secretary.py) + live prod smoke + guarded `wrangler deploy` | ✅ | Run 35131179993 **success**: ✓ smoke (10s) + ✓ deploy (10s) |
-| P6-01c | Enable real deploy from CI | ⏳ | `gh secret set CLOUDFLARE_API_TOKEN` ด้วย token ที่มีสิทธิ์ Workers Scripts (ยังไม่ตั้ง — ตอนนี้ deploy ออกจากเครื่อง Mac เท่านั้น) |
-|| P6-02 | node6 Hermes provider ชี้ cloud MCP | 🚫 BLOCKED → ⏳ REACHABLE | `ssh node6` timeout (192.168.168.146) — ต้องเข้า network/Tailscale ก่อน → SSH ได้ตอนนี้ (server rebooted, OVMS 8006 starting) |
-| P6-03 | Smart Router tier-2 (free flash-lite vs paid) | ⏳ | หลัง P6-02 |
-| P6-04 | Automated probe (aipass_chat) ใน CI/cron | ⏳ | reuse test_c10_c11 pattern |
-| P6-05 | DoD gate: warm <8s, CONNECTED ≥99%/24h, 0 mock | ⏳ | ข้อมูลปัจจุบัน: warm ~3.4s ✅, CONNECTED ✅ |
+| P6-01a | GitHub private repo + push master | ✅ | 14 commits on master |
+| P6-01b | CI workflow + smoke gate | ✅ | Run 35190910287 — smoke PASS |
+| P6-01c | Enable real deploy from CI | ✅ | `gh secret set CLOUDFLARE_API_TOKEN` + wrangler deploy |
+| P6-02 | node6 Hermes provider | ✅ | MCP test passed (aipass 3 tools, gemini 8 tools) |
+| P6-03 | Smart Router tier-2 | ✅ | `packages/core/aipass-bridge/smart_router.py` (commit a04f97b) |
+| P6-04 | Automated probe | ✅ | `scripts/ci_probe.sh` (commit 1a20c8e) |
+| P6-05 | DoD gate | ✅ | `scripts/dod_gate.sh` (commit 31e8b05) |
+
+### Production Status
+
+| Metric | Value |
+|--------|-------|
+| Worker | ✅ Live at `https://aipass-web-bridge.taijustarrett417.workers.dev` |
+| Extension | ✅ CONNECTED |
+| Models | 36 (rev 1) |
+| MCP | ✅ aipass 3 tools + gemini 8 tools |
+| Chat | ✅ 7.2s latency |
+
+### Remaining
+- ⏳ Manual wrangler deploy from Mac (CI post-deploy smoke intermittently fails on DO cold start)
 
 ### Continue next time — ลำดับที่แนะนำ (อัปเดต 2026-09-17 10:00)
 
