@@ -1,8 +1,15 @@
 # Secretary implementation handoff
 
-Updated: 2026-09-17 (evening) Asia/Bangkok
+Updated: 2026-09-17 (10:00) Asia/Bangkok
 
-## ⚡ LATEST CHECKPOINT — Phase 6 partial: CI/CD green on GitHub (2026-09-17)
+## ⚡ LATEST CHECKPOINT — Phase 6: Orchestrator dispatch (2026-09-17 เช้า)
+
+- ✅ 5 subagents dispatched: agy1 (smart_router), agy2 (DoD gate), agy3 (ci_probe), MCP (status), node6 health
+- ✅ node6 SSH: REACHABLE (rebooted, OVMS 8006 starting)
+- ✅ DoD gate script created: `scripts/dod_gate.sh` (by agy2)
+- ✅ aipass production: CONNECTED, catalog rev 7 (35 models)
+- ✅ **gemini-web-bridge MCP: READY** — extension CONNECTED_AND_READY, 7 models (4 verified), default gemini-web-thinking
+- ⏳ agy1, agy3 terminal results pending
 
 Repo: **github.com/pphothidaen/aipass-web-bridge (private)** · branch `master`
 
@@ -13,29 +20,25 @@ Repo: **github.com/pphothidaen/aipass-web-bridge (private)** · branch `master`
 | P6-01a | GitHub private repo + push master (noreply email fix) | ✅ | `git remote -v` → pphothidaen/aipass-web-bridge; 6 commits |
 | P6-01b | CI workflow `.github/workflows/ci.yml` — syntax gates (worker/release-extension/secretary.py) + live prod smoke + guarded `wrangler deploy` | ✅ | Run 35131179993 **success**: ✓ smoke (10s) + ✓ deploy (10s) |
 | P6-01c | Enable real deploy from CI | ⏳ | `gh secret set CLOUDFLARE_API_TOKEN` ด้วย token ที่มีสิทธิ์ Workers Scripts (ยังไม่ตั้ง — ตอนนี้ deploy ออกจากเครื่อง Mac เท่านั้น) |
-| P6-02 | node6 Hermes provider ชี้ cloud MCP | 🚫 BLOCKED | `ssh node6` timeout (192.168.168.146) — ต้องเข้า network/Tailscale ก่อน |
+|| P6-02 | node6 Hermes provider ชี้ cloud MCP | 🚫 BLOCKED → ⏳ REACHABLE | `ssh node6` timeout (192.168.168.146) — ต้องเข้า network/Tailscale ก่อน → SSH ได้ตอนนี้ (server rebooted, OVMS 8006 starting) |
 | P6-03 | Smart Router tier-2 (free flash-lite vs paid) | ⏳ | หลัง P6-02 |
 | P6-04 | Automated probe (aipass_chat) ใน CI/cron | ⏳ | reuse test_c10_c11 pattern |
 | P6-05 | DoD gate: warm <8s, CONNECTED ≥99%/24h, 0 mock | ⏳ | ข้อมูลปัจจุบัน: warm ~3.4s ✅, CONNECTED ✅ |
 
-### Continue next time — ลำดับที่แนะนำ
+### Continue next time — ลำดับที่แนะนำ (อัปเดต 2026-09-17 10:00)
 
-1. **P6-01c**: สร้าง Cloudflare API token (dashboard → My Profile → API Tokens →
-   template "Deploy a Worker") แล้ว
-   `gh secret set CLOUDFLARE_API_TOKEN --repo pphothidaen/aipass-web-bridge`
-   → push อะไรก็ได้ หรือ `gh workflow run ci` เพื่อยืนยัน deploy จาก CI จริง
-2. **P6-02**: เมื่อ node6 reachable (Tailscale up) — ssh ไปใส่ provider
-   `aipass-web-bridge` (base_url workers.dev/v1, api_key hermes-secret-key-2026)
-   + mcp_servers entry เหมือน Mac (ตัวอย่าง YAML อยู่ใน plan.md "Config style")
-   แล้วทดสอบ `hermes mcp test aipass-web-bridge` บน node6
-3. **P6-03/04/05**: ตาม tickets ในตาราง
+1. **P6-02**: node6 SSH แล้ว — รอ OVMS 8006 start → ssh ไปใส่ provider `aipass-web-bridge` (base_url workers.dev/v1, api_key hermes-secret-key-2026) + mcp_servers entry → ทดสอบ `hermes mcp test aipass-web-bridge` บน node6
+2. **P6-01c**: สร้าง Cloudflare API token → `gh secret set CLOUDFLARE_API_TOKEN` → push เพื่อยืนยัน deploy จาก CI
+3. **P6-03/04/05**: รอ agy1, agy3 เสร็จ → review → commit
 
 ### Notes สำคัญสำหรับ session ถัดไป
 
 - `packages/core` เป็น **nested git repo** (มี history ของตัวเอง — v2 hardening
   commits) — อย่าลบ .git ข้างใน; CI ตรวจ release copy (`release/chrome-extension/`) แทน
-- prod ปัจจุบัน: Version 136c85d-era worker, extension CONNECTED, catalog rev 8
-  (35 models), warm latency ~3.4s
+- prod ปัจจุบัน: Version b7312f5-era worker, extension CONNECTED, catalog rev 7
+  (35 models), warm latency — DO state ใหม่ (ยังไม่มี chat วัด)
+- node6 SSH ได้ตั้งแต่ ~09:00 (server rebooted 0min) — OVMS 8006 กำลัง start
+  Tailscale domain: node6.taildab731.ts.net
 - secrets prod: BRIDGE_SECRET / CLIENT_API_KEY (ค่าดูได้ใน Cloudflare dashboard;
   ใช้ใน docs เป็น aipass-bridge-secret-2026 / hermes-secret-key-2026)
 - อย่า push secrets ลง repo — ปัจจุบันใช้ผ่าน gh secret / wrangler เท่านั้น

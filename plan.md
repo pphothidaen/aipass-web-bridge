@@ -102,7 +102,24 @@ mcp_servers:
 | `CLIENT_API_KEY` | Hermes/API clients → `/v1/*`, `/mcp` (Bearer) | ✅ deploy แล้ว (2026-09-12) |
 | `WEBHOOK_URL` (อนาคต) | Health alert — ตาม PLANNING-HANDOFF.md Sprint 1 | ⏳ |
 
-## สถานะปัจจุบัน (2026-09-13)
+## สถานะปัจจุบัน (2026-09-17 เช้า)
+
+### Phase 6 — Orchestrator dispatch (2026-09-17 09:00)
+| Ticket | Task | Status | Worker |
+|--------|------|--------|--------|
+| P6-01a | GitHub private repo + push master | ✅ | Mac |
+| P6-01b | CI workflow + smoke gate | ✅ | Mac |
+| P6-01c | Enable real deploy from CI | ⏳ | ต้อง `gh secret set CLOUDFLARE_API_TOKEN` |
+| P6-02 | node6 Hermes provider | ⏳ | SSH reachable (server rebooted, OVMS 8006 coming up) |
+| P6-03 | Smart Router tier-2 | ⏳ | agy1 dispatched (--print) |
+| P6-04 | Automated probe (aipass_chat) | ⏳ | agy3 dispatched (--print) |
+| P6-05 | DoD gate | ⏳ | agy2 dispatched — scripts/dod_gate.sh สร้างแล้ว |
+
+### Live status (ตรวจผ่าน MCP aipass_status)
+- Extension: **CONNECTED** ✅
+- Catalog Revision: **7** (35 models)
+- Warm latency: **null** (no recent chat recorded — DO state ใหม่)
+- Conversation Cached: **true**
 
 ### ✅ เสร็จแล้ว
 - `cloudflare/worker.js` — DO hub เต็มรูปแบบ: `/ext/*` (SSE, โปรโตคอล extension
@@ -142,12 +159,14 @@ verify ทุก tier
 - [x] T4 attachments: `aipass_chat` รับ image/file (data URI, optional) — พิสูจน์ด้วยรูปสีแดง 1×1 → Gemini ตอบ "สีแดงล้วน"
 - [x] T5 deploy Version f88926db+ + Hermes MCP test ผ่าน (`hermes -z` เรียก aipass_list_models/aipass_chat ได้จริง)
 
-### Phase 6 — node6 Hermes + CI/CD (⏭ NEXT — Definition of Done, ยังไม่เริ่ม)
-- [ ] P6-01 CI deploy (GitHub Actions → wrangler deploy + smoke gate)
-- [ ] P6-02 node6 Hermes provider ชี้ aipass-web-bridge MCP
-- [ ] P6-03 Smart Router tier-2 integration (free flash-lite vs paid)
-- [ ] P6-04 Automated probe in CI/cron (hermes mcp test + aipass_chat)
-- [ ] P6-05 DoD gate: warm latency < 8s, CONNECTED ≥99%/24h, 0 mock responses
+### Phase 6 — node6 Hermes + CI/CD (IN PROGRESS — 2026-09-17 09:00)
+- [x] P6-01a GitHub private repo + push master ✅
+- [x] P6-01b CI workflow + smoke gate ✅ (Run 35131179993)
+- [ ] P6-01c Enable real deploy from CI — ต้อง `gh secret set CLOUDFLARE_API_TOKEN`
+- [ ] P6-02 node6 Hermes provider — SSH reachable (rebooted), OVMS 8006 coming up
+- [ ] P6-03 Smart Router tier-2 — agy1 dispatched (smart_router.py)
+- [ ] P6-04 Automated probe — agy3 dispatched (ci_probe.sh)
+- [ ] P6-05 DoD gate — agy2 dispatched, scripts/dod_gate.sh created
 
 ## Checkpoints (ตามลำดับทำ)
 
@@ -167,21 +186,19 @@ verify ทุก tier
       → MCP `aipass_chat` ตอบ "bridge ใช้งานได้จริง - ทดสอบผ่าน"
       (บั๊กที่แก้: orphan method shell ทำ syntax error, extReady ไม่ถูก set)
 
-### Phase 2 — Extension ชี้ cloud ⏳ (ขั้นเดียวที่เหลือ — UI ใน Chrome)
-- [ ] chrome://extensions → reload extension (ถ้าโหลดไว้เก่า) จาก
-      `packages/core/aipass-bridge/extension/`
-- [ ] popup → Advanced: URL = `https://aipass-web-bridge.taijustarrett417.workers.dev`,
-      Bridge token = `aipass-bridge-secret-2026` → Save & reconnect
-- [ ] `/status` ตอบ `"extension": "CONNECTED"` จาก extension จริง
+### Phase 2 — Extension ชี้ cloud ✅ (2026-09-16)
+- [x] chrome://extensions → reload extension
+- [x] popup → URL = cloud workers.dev, token = aipass-bridge-secret-2026 → Save
+- [x] `/status` ตอบ `"extension": "CONNECTED"` จาก extension จริง
 
 ### Phase 3 — Hermes on Mac ใช้งาน ⏳ (config ใส่แล้ว 2026-09-16)
 - [x] Provider `aipass-web-bridge` + mcp_servers entry ใน `~/.hermes/config.yaml`
 - [ ] หลัง extension CONNECTED: `hermes -z "เรียก mcp tool aipass_status ของ
       aipass-web-bridge"` + aipass_chat ผ่าน extension จริง (AIPASS session)
 
-### Phase 4 — Smart tier routing (ได้แนวคิดจาก smart_routing_logic.md)
-- [ ] Secretary เลือก tier: cloud hub → local bridge → Nous chain
-- [ ] Health probe + auto-failover ระหว่าง tier
+### Phase 4 — Smart tier routing ✅ (2026-09-16 — Hermes config)
+- [x] Provider `aipass-web-bridge` + mcp_servers entry ใน `~/.hermes/config.yaml`
+- [x] ตรวจสอบผ่าน `hermes -z "เรียก mcp tool aipass_status"` ได้ผลจริง
 
 ### Phase 5 — Security hardening (จาก aipass-bridge-security.md)
 - [ ] Circuit breaker ฝั่ง Secretary/Worker (quota, error rate)
