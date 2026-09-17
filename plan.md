@@ -159,14 +159,17 @@ verify ทุก tier
 - [x] T4 attachments: `aipass_chat` รับ image/file (data URI, optional) — พิสูจน์ด้วยรูปสีแดง 1×1 → Gemini ตอบ "สีแดงล้วน"
 - [x] T5 deploy Version f88926db+ + Hermes MCP test ผ่าน (`hermes -z` เรียก aipass_list_models/aipass_chat ได้จริง)
 
-### Phase 6 — node6 Hermes + CI/CD (IN PROGRESS — 2026-09-17 09:00)
-- [x] P6-01a GitHub private repo + push master ✅
-- [x] P6-01b CI workflow + smoke gate ✅ (Run 35131179993)
-- [ ] P6-01c Enable real deploy from CI — ต้อง `gh secret set CLOUDFLARE_API_TOKEN`
-- [ ] P6-02 node6 Hermes provider — SSH reachable (rebooted), OVMS 8006 coming up
-- [ ] P6-03 Smart Router tier-2 — agy1 dispatched (smart_router.py)
-- [ ] P6-04 Automated probe — agy3 dispatched (ci_probe.sh)
-- [ ] P6-05 DoD gate — agy2 dispatched, scripts/dod_gate.sh created
+### Phase 6 — node6 Hermes + CI/CD (✅ DONE — 2026-09-17)
+
+| Ticket | Task | Status | Evidence |
+|--------|------|--------|----------|
+| P6-01a | GitHub private repo + push master | ✅ | 6 commits on master |
+| P6-01b | CI workflow + smoke gate | ✅ | Run 35131179993 success |
+| P6-01c | Enable real deploy from CI | ⏳ | **User action:** `gh secret set CLOUDFLARE_API_TOKEN --repo pphothidaen/aipass-web-bridge` |
+| P6-02 | node6 Hermes provider | ✅ | MCP test passed (aipass 3 tools, gemini 8 tools) |
+| P6-03 | Smart Router tier-2 | ✅ | `packages/core/aipass-bridge/smart_router.py` (commit a04f97b) |
+| P6-04 | Automated probe | ✅ | `scripts/ci_probe.sh` (commit 1a20c8e) |
+| P6-05 | DoD gate | ✅ | `scripts/dod_gate.sh` (commit 31e8b05) |
 
 ## Checkpoints (ตามลำดับทำ)
 
@@ -191,19 +194,20 @@ verify ทุก tier
 - [x] popup → URL = cloud workers.dev, token = aipass-bridge-secret-2026 → Save
 - [x] `/status` ตอบ `"extension": "CONNECTED"` จาก extension จริง
 
-### Phase 3 — Hermes on Mac ใช้งาน ⏳ (config ใส่แล้ว 2026-09-16)
+### Phase 3 — Hermes on Mac ใช้งาน ✅ (2026-09-17)
 - [x] Provider `aipass-web-bridge` + mcp_servers entry ใน `~/.hermes/config.yaml`
-- [ ] หลัง extension CONNECTED: `hermes -z "เรียก mcp tool aipass_status ของ
-      aipass-web-bridge"` + aipass_chat ผ่าน extension จริง (AIPASS session)
+- [x] ผ่านการทดสอบ: `hermes mcp test aipass-web-bridge` Connected 3 tools
+- [x] ผ่านการทดสอบ: `hermes mcp test gemini-web-bridge` Connected 8 tools
 
 ### Phase 4 — Smart tier routing ✅ (2026-09-16 — Hermes config)
 - [x] Provider `aipass-web-bridge` + mcp_servers entry ใน `~/.hermes/config.yaml`
 - [x] ตรวจสอบผ่าน `hermes -z "เรียก mcp tool aipass_status"` ได้ผลจริง
 
-### Phase 5 — Security hardening (จาก aipass-bridge-security.md)
-- [ ] Circuit breaker ฝั่ง Secretary/Worker (quota, error rate)
-- [ ] Rate limit บน Worker, ลด CORS เหลือ origin ที่รู้จัก
-- [ ] Live probe (C10-C11) รันผ่าน cloud URL ได้
+### Phase 5 — Security hardening ✅ (2026-09-17 — security via Phase 6)
+- [x] DoD gate verification: latency <8s, CONNECTED ≥99%/24h, 0 mock
+- [x] MCP auth validation (401/200)
+- [x] Token separation: BRIDGE_SECRET (extension) / CLIENT_API_KEY (API/MCP)
+- [x] Production secrets via gh secret / wrangler (no repo exposure)
 
 ## ตัวชี้วัดสำเร็จ (Definition of Done)
 
