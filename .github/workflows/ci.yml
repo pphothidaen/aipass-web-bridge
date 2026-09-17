@@ -53,4 +53,4 @@ jobs:
         if: steps.guard.outputs.skip == 'false'
         run: |
           sleep 5
-          curl -s --max-time 15 https://aipass-web-bridge.taijustarrett417.workers.dev/status | grep -q '"ok": true' || (echo "POST-DEPLOY FAILED" && exit 1)
+          curl -s --max-time 15 https://aipass-web-bridge.taijustarrett417.workers.dev/status | grep -q '"ok": *true' || (echo "POST-DEPLOY FAILED" && exit 1)
