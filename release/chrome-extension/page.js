@@ -926,10 +926,6 @@
       return;
     }
     else if (msg[TAG] === 'req') {
-      if (!isLeader) {
-        console.log('[aipass-page] ignoring request — this tab is standby');
-        return;
-      }
       const job = msg.job;
       if (job.sessionEpoch && job.sessionEpoch !== currentSessionEpoch) {
         window.postMessage({ [TAG]: 'res', type: 'STREAM_ERROR', requestId: job.requestId || job.jobId, error: 'Session epoch mismatch', code: 'session_epoch_mismatch', sessionEpoch: currentSessionEpoch }, '*');

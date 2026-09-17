@@ -1,3 +1,10 @@
+## [0.5.3] - 2026-09-17
+
+### Fixed
+- **Extension Tab Standby Hang**: Removed the `!isLeader` drop check in `page.js` that caused background/standby tabs to silently drop jobs routed to them, leading to client timeouts.
+- **Conversation Resolution & Re-use**: Added `loadConversations()` and `resolveConversation()` in `cloudflare/worker.js` to automatically reuse existing active conversations from the user's `de.aipass.net` session instead of hanging on `create-temporary-chat`.
+- **Job Timeout Tuning**: Reduced job timeout from 120s to 60s for chat jobs and 15s for loader jobs. Added diagnostics (`lastJob`, `lastPost`, `lastError`, `pendingJobs`) to `/status`.
+
 ## [0.5.2] - 2026-09-17
 
 ### Fixed

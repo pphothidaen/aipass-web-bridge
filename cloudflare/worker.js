@@ -20,6 +20,7 @@ const MODEL_FALLBACK = ["gemini-3.1-flash-lite", "claude-sonnet-5@default"];
 
 // Models list loader (same-origin .data route the web UI itself uses).
 const MODELS_LOADER_URL = "/loaders/list-models.data?_routes=routes%2Floaders%2Flist-models";
+const CONVERSATIONS_LOADER_URL = "/loaders/list-conversations.data?_routes=routes%2Floaders%2Flist-converstaions";
 
 // ── Model classification (ported from local bridge) ─────────────────────────
 const KIND_IDS = {
@@ -168,6 +169,7 @@ export class ExtHub {
     // presence of the open stream means the extension channel is usable).
     this.extReady = true;
     this.lastExtSeen = Date.now();
+    this.extConnectedAt = Date.now();
     const enc = new TextEncoder();
 
     // Greet exactly like the local bridge does
@@ -212,6 +214,7 @@ export class ExtHub {
 
   async extPost(request, kind) {
     const body = await request.json().catch(() => ({}));
+    this.lastPost = { kind, at: Date.now(), message: body?.message || null, jobId: body?.jobId || null };
     const job = this.jobs.get(body.jobId);
     if (!job) return json({ ok: true, note: "unknown jobId (probably reconnected)" });
 
@@ -231,6 +234,7 @@ export class ExtHub {
     } else if (kind === "error") {
       clearTimeout(job.timer);
       this.jobs.delete(body.jobId);
+      this.lastError = body.message || "extension error";
       job.reject(new Error(body.message || "extension error"));
     }
     return json({ ok: true });
@@ -245,16 +249,18 @@ export class ExtHub {
       return Promise.reject(new Error("no extension connected to the cloud hub"));
     }
     const jobId = crypto.randomUUID();
+    const timeoutMs = payload.kind === "chat" ? 60000 : 15000;
     const job = { chunks: [], resolve: null, reject: null, timer: null, onChunk, kind: payload.kind };
     const result = new Promise((resolve, reject) => {
       job.resolve = resolve;
       job.reject = reject;
     });
     this.jobs.set(jobId, job);
+    this.lastJob = { jobId, kind: payload.kind, at: Date.now() };
     job.timer = setTimeout(() => {
       this.jobs.delete(jobId);
-      job.reject(new Error("timeout waiting for extension (120s)"));
-    }, 120000);
+      job.reject(new Error(`timeout waiting for extension (${timeoutMs / 1000}s)`));
+    }, timeoutMs);
 
     // Same event shape the local bridge sends over SSE
     this.extWriter.write(new TextEncoder().encode(
@@ -274,9 +280,41 @@ export class ExtHub {
     }, onChunk);
   }
 
-  // Mirror the local bridge's resolveConversation(): reuse one temporary
-  // conversation per DO (T1 latency) — mint a new one only on cold start or
-  // after the session expires it ("conversation not found" → retry recreates).
+  // Pull existing conversations from the active de.aipass.net session
+  async loadConversations() {
+    try {
+      const raw = await Promise.race([
+        this.runLoaderJob(CONVERSATIONS_LOADER_URL),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("conversations timeout")), 5000)),
+      ]);
+      const decoded = decodeTurboStream(raw);
+      const list = [];
+      const walk = (v) => {
+        if (Array.isArray(v)) return v.forEach(walk);
+        if (!v || typeof v !== "object") return;
+        if (typeof v.id === "string" && typeof v.updatedAt === "string") list.push(v);
+        Object.values(v).forEach(walk);
+      };
+      walk(decoded);
+      list.sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
+      return list;
+    } catch {
+      return [];
+    }
+  }
+
+  // Resolve conversation: prefer reusing an active one from the session,
+  // or mint a fresh temporary conversation.
+  async resolveConversation(modelId) {
+    if (this.conversationCache) return this.conversationCache;
+    const list = await this.loadConversations();
+    if (list.length && list[0]?.id) {
+      this.conversationCache = list[0].id;
+      return list[0].id;
+    }
+    return this.createConversation(modelId);
+  }
+
   async createConversation(modelId) {
     if (this.conversationCache) return this.conversationCache;
     const raw = await this.runCreateJob(modelId);
@@ -371,7 +409,7 @@ export class ExtHub {
         try {
           frame({ id, object: "chat.completion.chunk", created, model: modelId,
                   choices: [{ index: 0, delta: { role: "assistant" } }] });
-          const conversationId = await this.createConversation(modelId);
+          const conversationId = await this.resolveConversation(modelId);
           const { finishReason } = await this.runChatJob(text, modelId, conversationId, (delta) => {
             if (delta) frame({ id, object: "chat.completion.chunk", created, model: modelId,
                                choices: [{ index: 0, delta: { content: delta } }] });
@@ -386,7 +424,7 @@ export class ExtHub {
           if (/conversation not found|404/i.test(String(err.message || err))) {
             try {
               this.conversationCache = null;
-              const conversationId = await this.createConversation(modelId);
+              const conversationId = await this.resolveConversation(modelId);
               const { finishReason } = await this.runChatJob(text, modelId, conversationId, (delta) => {
                 if (delta) frame({ id, object: "chat.completion.chunk", created, model: modelId,
                                    choices: [{ index: 0, delta: { content: delta } }] });
@@ -414,7 +452,7 @@ export class ExtHub {
 
     const started = Date.now();
     try {
-      const conversationId = await this.createConversation(modelId);
+      const conversationId = await this.resolveConversation(modelId);
       let chat;
       try {
         chat = await this.runChatJob(text, modelId, conversationId, null, body.attachments);
@@ -422,7 +460,7 @@ export class ExtHub {
         // Temporary conversation expired → recreate once and retry.
         if (!/conversation not found|404/i.test(String(err.message || err))) throw err;
         this.conversationCache = null;
-        const fresh = await this.createConversation(modelId);
+        const fresh = await this.resolveConversation(modelId);
         chat = await this.runChatJob(text, modelId, fresh, null, body.attachments);
       }
       const out = chat.chunks.map(p => p?.text ?? "").join("");
@@ -575,6 +613,12 @@ export class ExtHub {
       architecture: "Cloudflare Worker + Durable Object (SSE hub, like gemini-web-bridge)",
       extension: this.isExtConnected ? "CONNECTED" : "OFFLINE",
       extensions: this.isExtConnected ? 1 : 0,
+      extConnectedAt: this.extConnectedAt ? new Date(this.extConnectedAt).toISOString() : null,
+      lastJob: this.lastJob || null,
+      lastPost: this.lastPost || null,
+      lastError: this.lastError || null,
+      pendingJobsCount: this.jobs.size,
+      pendingJobIds: Array.from(this.jobs.keys()),
       defaultModel: this.defaultModel,
       models: this.modelCatalog.length
         ? this.modelCatalog.map(m => ({ id: m.id, kind: m.kind, free: m.free }))
