@@ -12,6 +12,10 @@ import { randomUUID } from 'node:crypto';
 
 const PORT = Number(process.env.AIPASS_PORT ?? 8787);
 const HOST = process.env.AIPASS_HOST ?? '127.0.0.1';
+
+// Feature flag: when AIPASS_STATEFUL_COORDINATOR=0, falls back to legacy stateless relay
+// (no epoch fencing, no FIFO queue, no leader election). Default: enabled.
+const STATEFUL_COORDINATOR = process.env.AIPASS_STATEFUL_COORDINATOR !== '0';
 const MODELS_FALLBACK = (process.env.AIPASS_MODELS ?? 'gemini-3.1-flash-lite,claude-sonnet-5@default')
   .split(',').map((s) => s.trim()).filter(Boolean);
 // Where upstream tool activity (web_search progress, sources) goes:
@@ -73,6 +77,15 @@ const corsHeaders = () => (CORS_ORIGIN
   : {});
 
 const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
+
+// ─── Cloudflare 403 Detection ───────────────────────────────────────────────
+// Used by the circuit breaker to detect Cloudflare challenge/forbidden responses
+// that should pause the request queue rather than fail the request outright.
+function isCloudflare403(message) {
+  const text = String(message ?? '');
+  return /(?:aipass returned|returned) 403\b/i.test(text)
+    && /cloudflare|cf-ray|attention required/i.test(text);
+}
 
 /* ------------------------------------------------- react-router turbo-stream */
 
@@ -323,8 +336,10 @@ const sendToClient = (client, event, data) =>
   client.res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
 
 import { BridgeDO } from './bridge-do.mjs';
+import { ProtocolV2, validateMessage, validateEpochEnvelope, validateMessageSequence } from './protocol-v2.mjs';
 const bridgeDO = new BridgeDO();
 const bridgeClients = new Set();
+const bridgeSeqTracker = new Map(); // epoch → last seq
 const sendToBridgeClient = (client, event, data) =>
   client.res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
 
@@ -615,6 +630,41 @@ function startChat({ modelId, text, parts, aspectRatio: ratio, thinkingLevel, vi
 
   attempt();
   return { abort: () => current?.abort() };
+}
+
+// Protocol v2 execution path. The legacy Job flow remains available for older
+// extension clients, while a connected v2 client gets strict model/session
+// admission and structured stream parts from BridgeDO.
+function startBridgeChat({ modelId, text, parts, aspectRatio: ratio, thinkingLevel, video, imageStyleId, outputTone, outputFormat, onDelta, onDone, onError }) {
+  let cancelled = false;
+  void (async () => {
+    try {
+      const conversationId = await resolveConversation();
+      if (cancelled) return;
+      const finishReason = await bridgeDO.executeJob({
+        kind: kindOf(modelId) === 'video' ? 'video' : 'chat',
+        modelId,
+        text,
+        parts,
+        conversationId,
+        aspectRatio: ratio,
+        thinkingLevel,
+        video,
+        imageStyleId,
+        outputTone,
+        outputFormat,
+        temporary: conversationIsTemporary,
+      }, (part) => {
+        if (!cancelled) onDelta(part);
+      });
+      if (!cancelled) onDone(finishReason);
+    } catch (err) {
+      if (!cancelled) onError(err?.message ?? String(err));
+    }
+  })();
+  return {
+    abort: () => { cancelled = true; },
+  };
 }
 
 // True for loopback, link-local and RFC1918 addresses. The URL parser has
@@ -998,12 +1048,32 @@ async function chatCompletions(req, res) {
     return oaiError(res, 503, 'No browser extension connected — open a de.aipass.net tab and check the popup', 'service_unavailable');
   }
 
-  // FIFO queue gate (non-blocking for first request, queues subsequent ones)
-  try {
-    await bridgeDO.enqueueRequest();
-  } catch (queueErr) {
-    if (queueErr.code === 'queue_full') return oaiError(res, 429, 'Request queue is full (max 10), try again later', 'rate_limit');
-    return oaiError(res, 503, String(queueErr.message), 'service_unavailable');
+  // Protocol v2 is active only when stateful coordinator is enabled AND a v2 bridge client is connected.
+  // Legacy extension clients (via /ext/events) always use the legacy Job flow.
+  const useProtocolV2 = STATEFUL_COORDINATOR && bridgeDO.isExtensionReady();
+
+  // Strict model verification (only when protocol v2 is active)
+  if (useProtocolV2) {
+    const catalogEntry = bridgeDO.dynamicModels.find((entry) => entry.id === model);
+    if (!catalogEntry || catalogEntry.ready === false || catalogEntry.selectable === false) {
+      return oaiError(res, 422, `Model unverified: ${model}`, 'model_unverified');
+    }
+  }
+
+  // FIFO queue gate — only when a protocol v2 bridge client is connected.
+  // Legacy extension clients (via /ext/events) bypass the queue entirely.
+  if (STATEFUL_COORDINATOR && bridgeDO.isExtensionReady()) {
+    // Cloudflare 403 Circuit Breaker: block new requests when circuit is open
+    const circuit = bridgeDO.isCircuitBlocked();
+    if (circuit.blocked) {
+      return oaiError(res, 503, `Cloudflare 403 circuit open — retry in ${Math.ceil(circuit.remainingMs / 1000)}s`, 'circuit_open');
+    }
+    try {
+      await bridgeDO.enqueueRequest();
+    } catch (queueErr) {
+      if (queueErr.code === 'queue_full') return oaiError(res, 429, 'Request queue is full (max 10), try again later', 'rate_limit');
+      return oaiError(res, 503, String(queueErr.message), 'service_unavailable');
+    }
   }
   const id = `chatcmpl-${randomUUID().replace(/-/g, '').slice(0, 24)}`;
   const created = Math.floor(Date.now() / 1000);
@@ -1036,7 +1106,8 @@ async function chatCompletions(req, res) {
     };
     emit({ role: 'assistant', content: '' });
 
-    const job = startChat({
+    const start = useProtocolV2 ? startBridgeChat : startChat;
+    const job = start({
       modelId: model, text, parts, aspectRatio: ratio, thinkingLevel, video,
       imageStyleId, outputTone, outputFormat,
       onDelta: (part) => {
@@ -1051,14 +1122,18 @@ async function chatCompletions(req, res) {
         else emit({ content: part.text });
       },
       onDone: (finishReason) => {
-        bridgeDO.dequeueRequest();
+        if (STATEFUL_COORDINATOR && bridgeDO.isExtensionReady()) {
+          bridgeDO.dequeueRequest();
+          // Record success — resets circuit breaker if it was open
+          bridgeDO.recordSuccess();
+        }
         stopKeepalive();
         emit({}, finishReason === 'length' ? 'length' : 'stop');
         res.write('data: [DONE]\n\n');
         res.end();
       },
       onError: (message) => {
-        bridgeDO.dequeueRequest();
+        if (STATEFUL_COORDINATOR && bridgeDO.isExtensionReady()) bridgeDO.dequeueRequest();
         stopKeepalive();
         res.write(`data: ${JSON.stringify({ error: { message, type: 'upstream_error' } })}\n\n`);
         res.write('data: [DONE]\n\n');
@@ -1072,7 +1147,8 @@ async function chatCompletions(req, res) {
   let out = '';
   let reasoning = '';
   await new Promise((resolve) => {
-    const job = startChat({
+    const start = useProtocolV2 ? startBridgeChat : startChat;
+    const job = start({
       modelId: model, text, parts, aspectRatio: ratio, thinkingLevel, video,
       imageStyleId, outputTone, outputFormat,
       onDelta: (p) => {
@@ -1082,7 +1158,10 @@ async function chatCompletions(req, res) {
         else out += p.text;
       },
       onDone: (finishReason) => {
-        bridgeDO.dequeueRequest();
+        if (STATEFUL_COORDINATOR && bridgeDO.isExtensionReady()) {
+          bridgeDO.dequeueRequest();
+          bridgeDO.recordSuccess();
+        }
         json(res, 200, {
           id, object: 'chat.completion', created, model,
           choices: [{
@@ -1100,7 +1179,7 @@ async function chatCompletions(req, res) {
         });
         resolve();
       },
-      onError: (message) => { bridgeDO.dequeueRequest(); oaiError(res, 502, message, 'upstream_error'); resolve(); },
+      onError: (message) => { if (STATEFUL_COORDINATOR && bridgeDO.isExtensionReady()) bridgeDO.dequeueRequest(); oaiError(res, 502, message, 'upstream_error'); resolve(); },
     });
     res.on('close', () => { job.abort(); resolve(); });
   });
@@ -1138,6 +1217,23 @@ async function bridgeMessage(req, res) {
     for await (const chunk of req) body += chunk;
     const msg = JSON.parse(body);
 
+    const validation = validateMessage(msg.type, msg);
+    if (!validation.ok) return oaiError(res, 400, validation.error, 'invalid_request_error');
+
+    // Epoch fencing: reject stale sessions and out-of-order messages
+    if (msg.sessionEpoch != null && msg.sessionEpoch !== bridgeDO.sessionEpoch) {
+      return oaiError(res, 409, 'stale protocol session', 'session_epoch_mismatch');
+    }
+
+    // Fencing token check (monotonic sequence) — only when stateful coordinator is active
+    if (STATEFUL_COORDINATOR) {
+      const epochCheck = validateEpochEnvelope(msg, bridgeDO.sessionEpoch);
+      if (!epochCheck.ok) return oaiError(res, 400, epochCheck.error, 'fencing_error');
+      if (!validateMessageSequence(msg, bridgeSeqTracker)) {
+        return oaiError(res, 400, 'out-of-order message sequence', 'sequence_error');
+      }
+    }
+
     switch (msg.type) {
       case 'MODELS_DISCOVERED':
         bridgeDO.replaceModelCatalog(msg);
@@ -1149,10 +1245,36 @@ async function bridgeMessage(req, res) {
       case 'MODEL_READY': {
         const handler = bridgeDO.activeStreams.get(msg.requestId);
         if (handler) {
-          if (msg.type === 'STREAM_CHUNK') handler({ type: 'STREAM_CHUNK', chunk: msg.chunk });
-          if (msg.type === 'STREAM_DONE') handler({ type: 'STREAM_DONE' });
-          if (msg.type === 'STREAM_ERROR') handler({ type: 'STREAM_ERROR', error: msg.error, code: msg.code });
-          if (msg.type === 'MODEL_READY') handler({ type: 'MODEL_READY', model: msg.model });
+          if (msg.type === 'STREAM_CHUNK') handler({
+            type: ProtocolV2.STREAM_CHUNK,
+            chunk: msg.chunk,
+            parts: msg.parts,
+            sessionEpoch: msg.sessionEpoch,
+          });
+          if (msg.type === 'STREAM_DONE') handler({
+            type: ProtocolV2.STREAM_DONE,
+            finishReason: msg.finishReason,
+            sessionEpoch: msg.sessionEpoch,
+          });
+          if (msg.type === 'STREAM_ERROR') {
+            // Cloudflare 403 Circuit Breaker: detect and pause queue
+            const errorText = msg.error ?? msg.message ?? '';
+            if (isCloudflare403(errorText)) {
+              bridgeDO.handleCloudflare403(msg.requestId);
+            }
+            handler({
+              type: ProtocolV2.STREAM_ERROR,
+              error: errorText,
+              code: msg.code,
+              sessionEpoch: msg.sessionEpoch,
+            });
+          }
+          if (msg.type === 'MODEL_READY') handler({
+            type: ProtocolV2.MODEL_READY,
+            model: msg.model,
+            mappingRevision: msg.mappingRevision,
+            sessionEpoch: msg.sessionEpoch,
+          });
         }
         break;
       }
@@ -1161,11 +1283,15 @@ async function bridgeMessage(req, res) {
         break;
       case 'SESSION_READY':
         bridgeDO.currentTokens = msg.tokens;
-        if (msg.epoch) bridgeDO.sessionEpoch = msg.epoch;
+        if (msg.sessionEpoch != null && msg.sessionEpoch !== bridgeDO.sessionEpoch) {
+          bridgeDO.sessionEpoch = msg.sessionEpoch;
+          bridgeDO.invalidateAllEvidence();
+        }
+        if (typeof msg.protocolVersion === 'number') bridgeDO.protocolVersion = msg.protocolVersion;
         break;
       case 'MODEL_UPDATED':
-        bridgeDO.activeBrowserModel = msg.model;
-        bridgeDO.extendedThinkingActive = msg.extendedThinkingActive;
+        bridgeDO.activeBrowserModel = msg.activeModel ?? msg.model ?? null;
+        bridgeDO.extendedThinkingActive = msg.extendedThinking === true || msg.extendedThinkingActive === true;
         break;
     }
     return json(res, 200, { ok: true });
@@ -1493,6 +1619,25 @@ const server = http.createServer(async (req, res) => {
         return json(res, 200, { ok: true, message: 'reloading extension' });
       }
 
+      if (path === '/circuit-breaker/reset' && req.method === 'POST') {
+        bridgeDO.resetCircuitBreaker();
+        return json(res, 200, { ok: true, message: 'circuit breaker reset' });
+      }
+
+      if (path === '/circuit-breaker/status' && req.method === 'GET') {
+        const cb = bridgeDO.circuitBreaker;
+        const blocked = bridgeDO.isCircuitBlocked();
+        return json(res, 200, {
+          isOpen: cb.isOpen,
+          blocked: blocked.blocked,
+          remainingMs: blocked.remainingMs,
+          failureCount: cb.failureCount,
+          lastFailureAt: cb.lastFailureAt,
+          resumeAt: cb.resumeAt,
+          totalPaused: cb.totalPaused,
+        });
+      }
+
       if (path === '/tab/reload' && req.method === 'POST') {
         for (const client of extClients) sendToClient(client, 'reload_tab', {});
         return json(res, 200, { ok: true, message: 'reloading tab' });
@@ -1510,6 +1655,7 @@ const server = http.createServer(async (req, res) => {
     if (path === '/ext/assistant' && req.method === 'POST') return await extPost(req, res, 'assistant');
 
     if (path === '/status' || path === '/health') {
+      const circuitStatus = bridgeDO.isCircuitBlocked();
       return json(res, 200, {
         ok: true,
         extensions: extClients.size,
@@ -1517,6 +1663,13 @@ const server = http.createServer(async (req, res) => {
         bridgeReady: bridgeDO.isExtensionReady(),
         bridgeQueue: { busy: bridgeDO.requestBusy, pending: bridgeDO.pendingRequests.length },
         bridgeModels: bridgeDO.dynamicModels.length,
+        circuitBreaker: {
+          isOpen: bridgeDO.circuitBreaker.isOpen,
+          blocked: circuitStatus.blocked,
+          remainingMs: circuitStatus.remainingMs,
+          failureCount: bridgeDO.circuitBreaker.failureCount,
+          totalPaused: bridgeDO.circuitBreaker.totalPaused,
+        },
         defaultModel,
         conversation: PINNED_CONVERSATION || conversationCache,
         temporary: conversationIsTemporary,

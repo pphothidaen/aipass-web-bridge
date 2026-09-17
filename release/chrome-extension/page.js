@@ -62,7 +62,7 @@
     [TAG]: 'res',
     sessionEpoch: currentSessionEpoch,
     ...msg,
-  }, window.location.origin);
+  }, '*');
 
   function validateSessionEpoch(job) {
     if (job?.sessionEpoch != null && job.sessionEpoch !== currentSessionEpoch) {
@@ -109,17 +109,21 @@
   async function runLoader(job) {
     if (!validateSessionEpoch(job)) return;
     recordEvidence(job.jobId, job.modelId);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(new Error('loader request timeout (20s)')), 20000);
     try {
       if (!/^\/loaders\/[A-Za-z0-9._~-]+(\.data)?(\?|$)/.test(job.url)) {
         throw new Error(`refusing non-loader path: ${job.url}`);
       }
-      const res = await fetch(job.url, { credentials: 'include', headers: { accept: '*/*' } });
+      const res = await fetch(job.url, { credentials: 'include', headers: { accept: '*/*' }, signal: controller.signal });
       if (!res.ok) throw new Error(`aipass returned ${res.status} ${res.statusText}`);
       completeEvidence(job.jobId, 'completed');
       reply({ jobId: job.jobId, kind: 'loader', raw: await res.text() });
     } catch (err) {
       completeEvidence(job.jobId, 'failed');
       reply({ jobId: job.jobId, kind: 'loader', message: String(err?.message ?? err) });
+    } finally {
+      clearTimeout(timer);
     }
   }
 
@@ -129,6 +133,8 @@
   async function runCreate(job) {
     if (!validateSessionEpoch(job)) return;
     recordEvidence(job.jobId, job.modelId);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(new Error('create conversation timeout (45s)')), 45000);
     try {
       // A temporary chat is a different intent and takes no first message: the
       // server mints the conversation itself and marks it isTemporary, so it
@@ -150,6 +156,7 @@
         credentials: 'include',
         headers: { 'content-type': 'application/x-www-form-urlencoded;charset=UTF-8', accept: '*/*' },
         body: params.toString(),
+        signal: controller.signal,
       });
       if (!res.ok) throw new Error(`aipass returned ${res.status} ${res.statusText}`);
       completeEvidence(job.jobId, 'completed');
@@ -157,6 +164,8 @@
     } catch (err) {
       completeEvidence(job.jobId, 'failed');
       reply({ jobId: job.jobId, kind: 'loader', message: String(err?.message ?? err) });
+    } finally {
+      clearTimeout(timer);
     }
   }
 

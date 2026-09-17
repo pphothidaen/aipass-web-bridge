@@ -1,3 +1,23 @@
+## [0.5.4] - 2026-09-17
+
+### Added
+- **Unit Test Suite for Cloudflare Worker & ExtHub (`test/test-cf-worker.test.mjs`)**:
+  - Added 10 automated unit tests executing under `node:test` covering `ExtHub` lifecycle, turbo-stream decoding, conversation resolution, job timeouts, OpenAI formatting, and remote reload triggers.
+  - Added unit test suite to root `npm test` script.
+- **Remote Extension Reload Endpoints**:
+  - Added `POST /ext/reload` and `POST /ext/reload-tab` to `cloudflare/worker.js` allowing operators and tests to remotely command the connected extension to reload via SSE without manual browser toggling.
+
+### Fixed
+- **Timeout Waiting for Extension Root Cause**:
+  - In `cloudflare/worker.js`, increased `loadConversations()` timeout from 5s to 25s and added proper `clearTimeout` on timer completion to prevent false timeout fallbacks.
+  - Increased `create` job timeout to 120s to allow conversation initialization on `de.aipass.net`.
+  - In `aipass_chat` MCP tool, updated conversation initialization to use `resolveConversation` with caching rather than forcing a fresh `createConversation`.
+  - In `page.js`, added `AbortController` timeouts to `runLoader` (20s) and `runCreate` (45s) to ensure the extension never hangs indefinitely.
+  - In `background.js`, made `page.js` injection conditional on `!ok` in `ensureContentScript` to prevent resetting `__aipassBridgeGen` and invalidating in-flight jobs.
+
+### Changed
+- Bumped project and extension versions to `0.5.4` across `package.json` and `manifest.json`.
+
 ## [0.5.3] - 2026-09-17
 
 ### Fixed

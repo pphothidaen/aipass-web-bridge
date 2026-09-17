@@ -125,6 +125,8 @@ function findValue(node, key) {
   return null;
 }
 
+export { decodeTurboStream, findValue, extractModels, kindOf, CONVERSATIONS_LOADER_URL, MODELS_LOADER_URL, MODEL_FALLBACK };
+
 export class ExtHub {
   constructor(state, env) {
     this.env = env;
@@ -180,7 +182,7 @@ export class ExtHub {
     // zero bootstrap latency. Fire-and-forget — never block the stream.
     setTimeout(() => {
       this.refreshModels().catch(() => {});
-      this.createConversation(this.defaultModel).catch(() => { this.conversationCache = null; });
+      this.resolveConversation(this.defaultModel).catch(() => {});
     }, 100);
 
     // Heartbeat comment keeps intermediaries from closing the stream
@@ -226,16 +228,19 @@ export class ExtHub {
       this.jobs.delete(body.jobId);
       job.resolve({ chunks: job.chunks, finishReason: body.finishReason || "stop" });
     } else if (kind === "loader") {
-      // kind:'create' jobs answer here with the raw .data body (TurboStream)
-      clearTimeout(job.timer);
-      this.jobs.delete(body.jobId);
-      if (body.message) job.reject(new Error(body.message));
-      else job.resolve({ raw: body.raw || "" });
+      if (job) {
+        clearTimeout(job.timer);
+        this.jobs.delete(body.jobId);
+        if (body.message) job.reject(new Error(body.message));
+        else job.resolve({ raw: body.raw || "" });
+      }
     } else if (kind === "error") {
-      clearTimeout(job.timer);
-      this.jobs.delete(body.jobId);
-      this.lastError = body.message || "extension error";
-      job.reject(new Error(body.message || "extension error"));
+      if (job) {
+        clearTimeout(job.timer);
+        this.jobs.delete(body.jobId);
+        this.lastError = body.message || "extension error";
+        job.reject(new Error(body.message || "extension error"));
+      }
     }
     return json({ ok: true });
   }
@@ -249,7 +254,7 @@ export class ExtHub {
       return Promise.reject(new Error("no extension connected to the cloud hub"));
     }
     const jobId = crypto.randomUUID();
-    const timeoutMs = payload.kind === "chat" ? 60000 : 15000;
+    const timeoutMs = (payload.kind === "chat" || payload.kind === "create") ? 120000 : 30000;
     const job = { chunks: [], resolve: null, reject: null, timer: null, onChunk, kind: payload.kind };
     const result = new Promise((resolve, reject) => {
       job.resolve = resolve;
@@ -282,11 +287,13 @@ export class ExtHub {
 
   // Pull existing conversations from the active de.aipass.net session
   async loadConversations() {
+    let timer;
     try {
       const raw = await Promise.race([
         this.runLoaderJob(CONVERSATIONS_LOADER_URL),
-        new Promise((_, reject) => setTimeout(() => reject(new Error("conversations timeout")), 5000)),
+        new Promise((_, reject) => { timer = setTimeout(() => reject(new Error("conversations timeout")), 25000); }),
       ]);
+      clearTimeout(timer);
       const decoded = decodeTurboStream(raw);
       const list = [];
       const walk = (v) => {
@@ -298,7 +305,9 @@ export class ExtHub {
       walk(decoded);
       list.sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
       return list;
-    } catch {
+    } catch (err) {
+      clearTimeout(timer);
+      console.warn("[hub] loadConversations error:", err?.message || err);
       return [];
     }
   }
@@ -333,11 +342,13 @@ export class ExtHub {
     }
     if (this.modelRefresh) return this.modelRefresh;
     this.modelRefresh = (async () => {
+      let timer;
       try {
         const raw = await Promise.race([
           this.runLoaderJob(MODELS_LOADER_URL),
-          new Promise((_, reject) => setTimeout(() => reject(new Error("loader timeout")), 3000)),
+          new Promise((_, reject) => { timer = setTimeout(() => reject(new Error("loader timeout")), 10000); }),
         ]);
+        clearTimeout(timer);
         const models = extractModels(decodeTurboStream(raw));
         if (models.length) {
           this.modelCatalog = models;
@@ -347,7 +358,9 @@ export class ExtHub {
           this.defaultModel = free.includes("gemini-3.1-flash-lite")
             ? "gemini-3.1-flash-lite" : this.defaultModel;
         }
-      } catch { /* keep the previous/fallback catalog on refresh failure */ }
+      } catch {
+        clearTimeout(timer);
+      }
       finally { this.modelRefresh = null; }
       return this.modelsList();
     })();
@@ -554,7 +567,7 @@ export class ExtHub {
           if (!this.isExtConnected) throw new Error("extension offline (fail-fast, no mock)");
           const modelId = args.model || this.defaultModel;
           const started = Date.now();
-          const conversationId = await this.createConversation(modelId);
+          const conversationId = await this.resolveConversation(modelId);
           const parts = Array.isArray(args.attachments) ? args.attachments : null;
           let chunks;
           try {
@@ -563,7 +576,7 @@ export class ExtHub {
             // Temporary conversation expired → recreate once and retry.
             if (!/conversation not found|404/i.test(String(err.message || err))) throw err;
             this.conversationCache = null;
-            const fresh = await this.createConversation(modelId);
+            const fresh = await this.resolveConversation(modelId);
             ({ chunks } = await this.runChatJob(args.prompt || "Hello", modelId, fresh, null, parts));
           }
           this.lastChatLatencyMs = Date.now() - started;
@@ -617,6 +630,7 @@ export class ExtHub {
       lastJob: this.lastJob || null,
       lastPost: this.lastPost || null,
       lastError: this.lastError || null,
+      lastDispatchedTab: this.lastDispatchedTab || null,
       pendingJobsCount: this.jobs.size,
       pendingJobIds: Array.from(this.jobs.keys()),
       defaultModel: this.defaultModel,
@@ -627,6 +641,7 @@ export class ExtHub {
       credits: null, // quota figures flow with the extension session; extend when needed
       last_chat_latency_ms: this.lastChatLatencyMs,
       conversation_cached: Boolean(this.conversationCache),
+      cached_conversation_id: this.conversationCache || null,
       mcp_endpoint: `https://${host}/mcp`,
       openai_endpoint: `https://${host}/v1`,
       clients: "Hermes Agent (Mac), any OpenAI-compatible client, any MCP client",
@@ -656,6 +671,21 @@ export class ExtHub {
     if (p === "ext/done") return this.extPost(request, "done");
     if (p === "ext/loader") return this.extPost(request, "loader");
     if (p === "ext/error") return this.extPost(request, "error");
+    if (p === "ext/tab") {
+      const body = await request.json().catch(() => ({}));
+      this.lastDispatchedTab = body;
+      return json({ ok: true });
+    }
+    if (p === "ext/reload" || p === "reload") {
+      if (!this.extWriter) return json({ ok: false, error: "extension not connected" }, 503);
+      this.extWriter.write(new TextEncoder().encode(this.sseLine("reload_extension", {}))).catch(() => {});
+      return json({ ok: true, message: "reload_extension sent to connected extension" });
+    }
+    if (p === "ext/reload-tab") {
+      if (!this.extWriter) return json({ ok: false, error: "extension not connected" }, 503);
+      this.extWriter.write(new TextEncoder().encode(this.sseLine("reload_tab", {}))).catch(() => {});
+      return json({ ok: true, message: "reload_tab sent to connected extension" });
+    }
     if (p === "bridge/message" || p === "bridge/msg") return json({ ok: true, protocolVersion: 2 });
 
     if (p === "mcp" && request.method === "POST") return this.handleMcp(request);

@@ -80,7 +80,7 @@ function escapeHtmlText(str) {
         .replace(/"/g, '&quot;');
 }
 class AipassViewProvider {
-    constructor(_extensionUri, _getClient, _getContext, _onContextUsed, _startBridge, _extensionVersion = '0.1.29', _workspaceState, _globalState) {
+    constructor(_extensionUri, _getClient, _getContext, _onContextUsed, _startBridge, _extensionVersion = '0.1.30', _workspaceState, _globalState) {
         this._extensionUri = _extensionUri;
         this._getClient = _getClient;
         this._getContext = _getContext;

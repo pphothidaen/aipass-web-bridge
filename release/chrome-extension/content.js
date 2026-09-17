@@ -58,9 +58,9 @@ function handleIncomingMessage(msg) {
   if (!msg || typeof msg !== 'object') return;
   const t = msg.type;
   if (t === 'run' || t === 'EXECUTE_REQUEST' || t === 'execute_request') {
-    window.postMessage({ [TAG]: 'req', job: msg.job || msg }, window.location.origin);
+    window.postMessage({ [TAG]: 'req', job: msg.job || msg }, '*');
   } else if (t === 'abort' || t === 'CANCEL_REQUEST' || t === 'cancel_request') {
-    window.postMessage({ [TAG]: 'abort', jobId: msg.jobId || msg.requestId }, window.location.origin);
+    window.postMessage({ [TAG]: 'abort', jobId: msg.jobId || msg.requestId }, '*');
   } else if (t === 'discover_models' || t === 'DISCOVER_MODELS') {
     window.postMessage({ [TAG]: 'discover_models' }, window.location.origin);
   } else if (t === 'prepare_model' || t === 'PREPARE_MODEL') {

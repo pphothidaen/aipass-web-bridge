@@ -184,8 +184,8 @@ async function ensureContentScript(tab) {
     await waitForComplete(tab.id);
   }
 
-  await chrome.scripting.executeScript({ target: { tabId: tab.id }, world: 'MAIN', files: ['page.js'] }).catch(() => {});
   if (!ok) {
+    await chrome.scripting.executeScript({ target: { tabId: tab.id }, world: 'MAIN', files: ['page.js'] }).catch(() => {});
     await chrome.scripting.executeScript({ target: { tabId: tab.id }, world: 'ISOLATED', files: ['content.js'] }).catch(() => {});
     await ping();
   }
@@ -209,6 +209,7 @@ async function handleJob(job) {
     await post('/ext/error', { jobId: job.jobId, message: 'no de.aipass.net tab is open' });
     return;
   }
+  post('/ext/tab', { tabId: tab.id, url: tab.url, jobId: job.jobId, kind: job.kind });
   jobTabs.set(job.jobId, { tabId: tab.id, job, cloudflareRetried: false });
   try {
     await ensureContentScript(tab);
