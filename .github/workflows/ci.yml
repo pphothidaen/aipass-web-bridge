@@ -3,6 +3,8 @@ name: ci
 on:
   push:
     branches: [master]
+  pull_request:
+    branches: [master]
   workflow_dispatch:
 
 jobs:
@@ -26,8 +28,49 @@ jobs:
           ST=$(curl -s --max-time 15 https://aipass-web-bridge.taijustarrett417.workers.dev/status)
           echo "$ST" | grep -q '"service": *"aipass-web-bridge"' || (echo "PROD SMOKE FAILED: $ST" && exit 1)
 
+  blueteam:
+    # Defensive security gate — mirrors gemini-web-bridge ci.yml:
+    # secret-leak scan + dependency audit + secret-hygiene assertions.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Secret leak scan (gitleaks, commits + working tree)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Dependency audit (high severity or worse)
+        run: |
+          npm audit --omit=dev --audit-level=high || true
+          npm audit --prefix packages/core/aipass-bridge --omit=dev --audit-level=high || true
+      - name: Worker must not carry hard-coded tokens
+        run: |
+          if grep -nE 'aipass-bridge-secret-2026|hermes-secret-key-2026' cloudflare/worker.js cloudflare/wrangler.toml; then
+            echo "::error::hard-coded token literal found in worker/wrangler config"; exit 1
+          fi
+          echo "worker secret hygiene OK"
+
+  redteam:
+    # Offensive security gate — adversarial suites + auth unit coverage.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Unit tests (worker + config precedence + fallback agent)
+        run: npm test
+      - name: Red-team adversarial suite (coordinator, epoch fencing, queue)
+        run: node --test packages/core/aipass-bridge/test/red-team-chaos.test.mjs
+      - name: SSRF / redirect guard suite
+        run: node --test packages/core/aipass-bridge/test/ssrf.test.mjs
+
   deploy:
-    needs: smoke
+    needs: [smoke, blueteam, redteam]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

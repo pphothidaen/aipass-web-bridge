@@ -1,0 +1,16 @@
+# gitleaks config: extend the default rules with a targeted allowlist.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Known-default bridge token shipped inside the Chrome extension (v0.5.5 Kiwi zero-config flow). Rotating it is tracked as a separate extension release; secrets that matter live in Doppler/Cloudflare only."
+paths = [
+  '''packages/core/aipass-bridge/extension/''',
+  '''release/chrome-extension/''',
+  '''^CHANGELOG\.md$''',
+  '''^docs/''',
+]
+regexes = [
+  '''aipass-bridge-secret-2026''',
+  '''hermes-secret-key-2026''',
+]

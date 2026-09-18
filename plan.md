@@ -1,208 +1,57 @@
-# PLAN — aipass-web-bridge: ประยุกต์สถาปัตยกรรม gemini-web-bridge
+# PLAN — aipass-web-bridge: การปรับแนวคิดและ API Spec ให้ตรงกับ gemini-web-bridge
 
-อัปเดต: 2026-09-16 · เวอร์ชัน 0.3.0 (ระหว่างพัฒนา)
+อัปเดต: 2026-09-19 · เวอร์ชัน 0.6.1 (RED-4 แก้แล้ว · npm test 32/32 · red-team 10/10 · ยังไม่ push/deploy)
 
-> เอกสารอ้างอิงหลัก (จาก `~/Project/gemini-web-bridge`):
-> `HANDOFF.md` (blueprint ครบ), `GUARDRAILS.md` (กฎเหล็ก G1-G5),
-> `docs/client-configs.md` (Hermes config style), `ARCHITECTURE.md` (protocol),
-> `PLANNING-HANDOFF.md` (roadmap pattern: Health Recovery → Context Memory → Multi-Session)
+> เอกสารอ้างอิงหลัก (จาก `/Users/kimlenglim/Project/gemini-web-bridge`):
+> `cloudflare-worker/src/index.js` (API spec), `.github/workflows/ci.yml`
+> (blue/red-team CI pattern), `GUARDRAILS.md` (กฎเหล็ก G1–G5),
+> และฝั่งนี้: `docs/API-SPEC.md`, `docs/CONFIGURATION.md`
 
 ## เป้าหมายระดับสูง
 
-ปรับโปรเจกต์นี้ (เดิม aipass-web-bridge) ให้มีสถาปัตยกรรมระดับ high-level เหมือน
-`gemini-web-bridge` (อ้างอิง: `/Users/kimlenglim/Project/gemini-web-bridge`):
+ให้ aipass-web-bridge และ gemini-web-bridge ใช้ "แนวทางเดียวกัน" 3 ด้าน:
 
-1. **Chrome extension ↔ Cloudflare Durable Object ↔ AI Clients**
-2. ใช้งานกับ **Hermes Agent บน Mac เครื่องนี้** ได้ทั้งแบบ model provider และ MCP
-3. **Remote MCP Server** (JSON-RPC 2.0) บน Cloudflare
+1. **Unified API spec / auth** — OpenAI-compatible error envelope, สอง role
+   (`CLIENT_API_KEY` / `BRIDGE_SECRET`), fail-fast codes
+   (`503 secrets_unconfigured`, `422 model_unverified`, `429 queue_full`)
+2. **Secret & config storage policy** — precedence: **Doppler → Cloudflare → .env → defaults**
+3. **CI/CD blue-team + red-team** — ทุก push/PR ต้องผ่าน security gates ก่อน deploy
 
-## สถาปัตยกรรมเป้าหมาย (Tiered Routing)
+## สถานะงาน (2026-09-19)
 
-```
-┌──────────────────────────────────────────────────────────────┐
-│ Clients (HTTPS) — Hermes Agent (Mac), OpenAI clients, MCP    │
-└──────────────┬───────────────────────────────────────────────┘
-               │ Bearer CLIENT_API_KEY (+ BRIDGE_SECRET ฝั่ง extension)
-               ▼
-┌──────────────────────────────────────────────────────────────┐
-│ Cloudflare Worker: aipass-web-bridge  (Tier 0 — primary)     │
-│  GET  /            Health dashboard (public)                 │
-│  POST /v1/chat/completions  OpenAI API (JSON + SSE stream)   │
-│  GET  /v1/models   Model catalog                             │
-│  POST /mcp         MCP JSON-RPC 2.0 (tools/list, tools/call) │
-│  /ext/*            Extension channel (SSE + POST, secret)    │
-│  ── Durable Object: ExtHub (single-isolate state) ──         │
-└──────────────┬───────────────────────────────────────────────┘
-               │ SSE (outbound) — x-bridge-token: BRIDGE_SECRET
-               ▼
-┌──────────────────────────────────────────────────────────────┐
-│ Chrome extension (AIPASS) — de.aipass.net session (Mac)      │
-│  popup: Bridge URL + Bridge token                            │
-└──────────────┬───────────────────────────────────────────────┘
-               ▼
-        AIPASS web session (credits/gemini/claude)
-```
+### ✅ เสร็จแล้ว (v0.6.0, `npm test` 32/32 ผ่าน)
 
-### Tier routing (ประยุกต์จาก dynamic_routing_architecture.md ของ gemini-web-bridge)
+| งาน | หลักฐาน |
+|---|---|
+| Config loader รวมศูนย์ (Doppler → CF vars → .env → defaults) | `packages/core/aipass-bridge/bridge/config.mjs` + `server.mjs` ใช้ `loadConfig()` |
+| ลบ hardcoded fallback tokens ออกจาก worker | `cloudflare/worker.js` (เดิม `aipass-bridge-secret-2026`/`hermes-secret-key-2026` ถูกยอมรับเสมอ) |
+| Auth 401 envelope แบบ OpenAI + fail-fast 503 เมื่อไม่มี secrets | `cloudflare/worker.js` edge auth |
+| CI blue-team (gitleaks + npm audit + secret-hygiene grep) | `.github/workflows/ci.yml` job `blueteam` |
+| CI red-team (red-team-chaos + ssrf suites) | `.github/workflows/ci.yml` job `redteam` |
+| deploy ต้องผ่าน smoke+blueteam+redteam, รันบน PR ด้วย | `ci.yml` |
+| เอกสาร policy + unified spec | `docs/CONFIGURATION.md`, `docs/API-SPEC.md`, `.env.example` |
+| Version 0.6.0 + CHANGELOG + manifests | `package.json`, `CHANGELOG.md`, `extension/manifest.json`, `release/chrome-extension/manifest.json` |
+| Unit tests config precedence (7 tests) | `test/test-config-loader.test.mjs` (อยู่ใน `npm test`) |
 
-| Tier | ช่องทาง | ใช้เมื่อ | สถานะใน plan นี้ |
-|---|---|---|---|
-| 0 | Cloudflare Worker hub | ปกติ — เข้าถึงจากที่ไหนก็ได้ | ✅ worker.js เสร็จแล้ว |
-| 1 | Local bridge on Mac (`127.0.0.1:8787`) | Cloudflare ล่ม/latency สูง/ออฟไลน์ — **Mac fallback** | ✅ มีอยู่แล้ว (Hermes fallback chain) |
-| 2 | Nous free consultant chain (`longcat`, `solar-pro`) | quota หมด / ทั้งสอง tier ล่ม | ✅ มีอยู่แล้วใน secretary.py |
+### ⏳ งานที่เหลือ (ตามลำดับที่แนะนำ)
 
-- **Smart routing / classification** (จาก smart_routing_logic.md): จำแนก request
-  simple file-op → ทำตรง, งานวางแผน → Tier 0, heal → Tier 2 — Secretary มี
-  `should_consult()` อยู่แล้ว, จะเพิ่ม tier selector ภายหลัง (Phase 4)
-- **Security / anti-ban / circuit breaker** (จาก aipass-bridge-security.md):
-  token แยก 2 role แล้ว (BRIDGE_SECRET / CLIENT_API_KEY), fail-fast 503 เมื่อ
-  extension offline (ไม่ mock), circuit breaker จะเพิ่มใน Phase 5
+1. ~~แก้ RED-4~~ — **เสร็จ (v0.6.1)**: สาเหตุจริงไม่ใช่ Date.now collision แต่เป็น
+   `validateEpochEnvelope()` ใน `protocol-v2.mjs` ตรวจฟิลด์ `epoch` ซึ่ง wire messages
+   ใช้ `sessionEpoch` → envelope เก่าผ่าน fence ได้เสมอ แก้ให้ fence และ sequence
+   tracker ใช้ `sessionEpoch` (fallback `epoch` สำหรับ envelope ภายใน) — red-team 10/10
+2. ~~Sync release copy + zip~~ — **เสร็จ**: `release/chrome-extension` mirror แล้ว
+   (diff ว่าง), สร้าง `release/aipass-bridge-chrome-v0.6.1.zip` (8 files, syntax/manifest ตรวจแล้ว)
+3. **ตรวจสอบ Cloudflare secrets ก่อน deploy** — `BRIDGE_SECRET` / `CLIENT_API_KEY`
+   ต้องตั้งไว้บน worker แล้ว ไม่งั้น deploy ชุดใหม่แล้ว extension/API โดน 401 ทันที
+   (ตรวจด้วย `curl -H "x-bridge-token: <token>" https://.../bridge/message` หลัง deploy)
+4. ~~Commit งาน~~ — **เสร็จ**: nested repo `3e0d040` (main) แล้ว commit repo หลัก
+5. **(ถัดไป, optional)** ย้าย default token ใน extension (v0.5.5 Kiwi zero-config)
+   ไปเป็นค่าจาก Doppler/build-time substitution แบบ gemini-web-bridge
+   (`__BRIDGE_AUTH_TOKEN__` placeholder) — ต้องออก extension version ใหม่
 
-## Guardrails ที่ยึดตาม GUARDRAILS.md ของ gemini-web-bridge (G1-G5)
+## กฎที่ต้องรักษาไว้ (สืบทอดจาก gemini-web-bridge GUARDRAILS)
 
-| กฎ | การประยุกต์กับ aipass-web-bridge | สถานะ |
-|---|---|---|
-| **G1 Zero-Token-Leak** | session cookies ของ de.aipass.net อยู่แค่ใน Chrome — Worker ไม่เห็น; token ยืนยันเป็น BRIDGE_SECRET/CLIENT_API_KEY เท่านั้น | ✅ โดยดีไซน์ |
-| **G2 Strict Fail-Closed** | extension offline → 503 `unavailable` จริง; ไม่มี mock/canned response | ✅ worker.js ทำแล้ว |
-| **G3 State Isolation** | DO เดียว (`idFromName("singleton")`), จำกัด job timeout 120s; ควรเพิ่ม FIFO queue max 10 + 429 ตาม reference | ⏳ Phase 5 |
-| **G4 Zero Debt + Tests** | ทุก phase ต้องผ่าน python suites + probe; worker ควรมี node --test ชุดของตัวเอง | ⏳ Phase 5 |
-| **G5 Hybrid Transparency** | เมื่อ fallback ข้าม tier ต้องแจ้ง client (เช่น header `X-Provider` หรือ JSONL event) — model switch notification มีแล้วฝั่ง Secretary | ⏳ Phase 4 |
-
-## Config style ตาม docs/client-configs.md (ตัวอย่างจริงสำหรับ Phase 3)
-
-```yaml
-# ~/.hermes/config.yaml — model provider (แทนที่ local bridge เป็น cloud)
-providers:
-  aipass-web-bridge:
-    type: custom
-    name: aipass-web-bridge
-    base_url: https://aipass-web-bridge.taijustarrett417.workers.dev/v1
-    api_key: <CLIENT_API_KEY>
-    discover_models: true
-    refresh_models_on_connect: true
-    models:
-      - gemini-3.1-flash-lite
-      - claude-sonnet-5@default
-    timeout: 120
-    connect_timeout: 30
-
-# Remote MCP — สไตล์เดียวกับ gemini-web-bridge
-mcp_servers:
-  aipass-web-bridge:
-    url: https://aipass-web-bridge.taijustarrett417.workers.dev/mcp
-    headers:
-      Authorization: "Bearer <CLIENT_API_KEY>"
-```
-
-## Secrets (ตรงกับที่ deploy แล้วใน Workers dashboard)
-
-| Secret | ใช้โดย | ตั้งค่า |
-|---|---|---|
-| `BRIDGE_SECRET` | Chrome extension → `/ext/*` (header `x-bridge-token`) | ✅ deploy แล้ว (2026-09-12) |
-| `CLIENT_API_KEY` | Hermes/API clients → `/v1/*`, `/mcp` (Bearer) | ✅ deploy แล้ว (2026-09-12) |
-| `WEBHOOK_URL` (อนาคต) | Health alert — ตาม PLANNING-HANDOFF.md Sprint 1 | ⏳ |
-
-## สถานะปัจจุบัน (2026-09-17 เช้า)
-
-### Phase 6 — node6 Hermes + CI/CD (✅ DONE — 2026-09-17)
-
-### Live status (ตรวจผ่าน MCP aipass_status)
-- Extension: **CONNECTED** ✅
-- Catalog Revision: **7** (35 models)
-- Warm latency: **null** (no recent chat recorded — DO state ใหม่)
-- Conversation Cached: **true**
-
-### ✅ เสร็จแล้ว
-- `cloudflare/worker.js` — DO hub เต็มรูปแบบ: `/ext/*` (SSE, โปรโตคอล extension
-  จริง), `/v1/chat/completions` (**JSON + SSE streaming**), `/v1/models`,
-  `/mcp` (initialize / tools/list / tools/call — tools: `aipass_chat`,
-  `aipass_list_models`, `aipass_status`), `/` + `/status` public health
-- Auth 2 roles: `BRIDGE_SECRET` (extension) / `CLIENT_API_KEY` (API) —
-  ตรงกับ secrets ที่ deploy แล้วใน dashboard
-- `wrangler.toml` — DO binding + migration
-- Extension รองรับ remote bridge: `background.js` ส่ง `x-bridge-token` ทุก
-  request (SSE + POST), `popup.html` มีช่อง Bridge token
-- Deploy แล้วจริง: `https://aipass-web-bridge.taijustarrett417.workers.dev`
-  (secrets: BRIDGE_SECRET, CLIENT_API_KEY ตั้งใน dashboard แล้ว)
-- ย้ายโฟลเดอร์ → `/Users/kimlenglim/Project/aipass-web-bridge`
-
-### ⚠️ Blocker ต้องรันคำสั่งด้วยมือ (shell ของ session พังหลังย้ายโฟลเดอร์)
-รัน `scripts/recovery-rename.sh` (สร้างไว้ให้แล้ว) ใน Terminal:
-symlink path เดิม → อัปเดตชื่อในไฟล์ที่เหลือ → restart bridge/orchestrator →
-verify ทุก tier
-
-### ✅ ค้างรอ verify — ครบแล้ว (2026-09-16)
-- popup.js save/load token ✅ (ทำแล้วก่อน deploy)
-- Hermes MCP config ✅ (ใส่ใน config.yaml แล้ว)
-
-### ✅ เสร็จแล้วในรอบ deploy (2026-09-16 เย็น)
-- popup.js save/load token ครบแล้ว
-- Recovery script รันสำเร็จ: symlink, references, bridge restart, tests ผ่านหมด
-- Deployed `aipass-web-bridge` worker (แทน Hello World), secrets ตั้งผ่าน
-  wrangler (BRIDGE_SECRET + CLIENT_API_KEY), auth ยืนยันแล้ว (401/200)
-- End-to-end round-trip ผ่าน: simulated extension → MCP aipass_chat → คำตอบจริง
-
-
-### Phase 5 — Performance + Dynamic Catalog + Skills + Attachments ✅ (2026-09-17)
-- [x] T1 latency: conversation cache + pre-warm on connect + 404 auto-recreate → **3–5s/chat** (เดิม ~15s)
-- [x] T2 dynamic model catalog: loader job + decodeTurboStream port → **35 models live**, TTL 60s, revision tracking
-- [x] T3 skills summary: tier free/paid + use_case ไทยต่อโมเดล (SKILL_RULES); free-quota routing (default = flash-lite)
-- [x] T4 attachments: `aipass_chat` รับ image/file (data URI, optional) — พิสูจน์ด้วยรูปสีแดง 1×1 → Gemini ตอบ "สีแดงล้วน"
-- [x] T5 deploy Version f88926db+ + Hermes MCP test ผ่าน (`hermes -z` เรียก aipass_list_models/aipass_chat ได้จริง)
-
-### Phase 6 — node6 Hermes + CI/CD (✅ DONE — 2026-09-17)
-
-| Ticket | Task | Status | Evidence |
-|--------|------|--------|----------|
-| P6-01a | GitHub private repo + push master | ✅ | 6 commits on master |
-| P6-01b | CI workflow + smoke gate | ✅ | Run 35131179993 success |
-| P6-01c | Enable real deploy from CI | ⏳ | **User action:** `gh secret set CLOUDFLARE_API_TOKEN --repo pphothidaen/aipass-web-bridge` |
-| P6-02 | node6 Hermes provider | ✅ | MCP test passed (aipass 3 tools, gemini 8 tools) |
-| P6-03 | Smart Router tier-2 | ✅ | `packages/core/aipass-bridge/smart_router.py` (commit a04f97b) |
-| P6-04 | Automated probe | ✅ | `scripts/ci_probe.sh` (commit 1a20c8e) |
-| P6-05 | DoD gate | ✅ | `scripts/dod_gate.sh` (commit 31e8b05) |
-
-## Checkpoints (ตามลำดับทำ)
-
-### Phase 0 — Recovery ✅ (2026-09-16)
-- [x] `bash scripts/recovery-rename.sh` ผ่านทั้งหมด (symlink, references)
-- [x] Shell/tests รันจาก path ใหม่ได้ (C9 8/8, isolated OK, regression 3/3)
-- [x] Bridge 8787 + orchestrator 8788 รันจาก path ใหม่ (HTTP 200)
-
-### Phase 1 — Cloudflare hub live ✅ (2026-09-16)
-- [x] Deployed: `https://aipass-web-bridge.taijustarrett417.workers.dev`
-      (worker ชื่อ `aipass-web-bridge` แทนที่ Hello World placeholder)
-- [x] Secrets ตั้งผ่าน wrangler: BRIDGE_SECRET + CLIENT_API_KEY (dashboard
-      Variables เดิมโดน deploy ทับ — ตั้งใหม่เป็น Secret จริง)
-- [x] Auth ยืนยัน: ไม่มี token → 401, Bearer ถูก → 200, /ext/* → 401
-- [x] `/mcp` tools/list + aipass_chat fail-fast (G2) ทำงานถูกต้อง
-- [x] End-to-end: simulated extension (SSE /ext/events + chunk/done postback)
-      → MCP `aipass_chat` ตอบ "bridge ใช้งานได้จริง - ทดสอบผ่าน"
-      (บั๊กที่แก้: orphan method shell ทำ syntax error, extReady ไม่ถูก set)
-
-### Phase 2 — Extension ชี้ cloud ✅ (2026-09-16)
-- [x] chrome://extensions → reload extension
-- [x] popup → URL = cloud workers.dev, token = aipass-bridge-secret-2026 → Save
-- [x] `/status` ตอบ `"extension": "CONNECTED"` จาก extension จริง
-
-### Phase 3 — Hermes on Mac ใช้งาน ✅ (2026-09-17)
-- [x] Provider `aipass-web-bridge` + mcp_servers entry ใน `~/.hermes/config.yaml`
-- [x] ผ่านการทดสอบ: `hermes mcp test aipass-web-bridge` Connected 3 tools
-- [x] ผ่านการทดสอบ: `hermes mcp test gemini-web-bridge` Connected 8 tools
-
-### Phase 4 — Smart tier routing ✅ (2026-09-16 — Hermes config)
-- [x] Provider `aipass-web-bridge` + mcp_servers entry ใน `~/.hermes/config.yaml`
-- [x] ตรวจสอบผ่าน `hermes -z "เรียก mcp tool aipass_status"` ได้ผลจริง
-
-### Phase 5 — Security hardening ✅ (2026-09-17 — security via Phase 6)
-- [x] DoD gate verification: latency <8s, CONNECTED ≥99%/24h, 0 mock
-- [x] MCP auth validation (401/200)
-- [x] Token separation: BRIDGE_SECRET (extension) / CLIENT_API_KEY (API/MCP)
-- [x] Production secrets via gh secret / wrangler (no repo exposure)
-
-## ตัวชี้วัดสำเร็จ (Definition of Done)
-
-1. `hermes -z "ทดสอบ" --provider aipass-bridge` ผ่าน Cloudflare ได้คำตอบจริง
-2. MCP `tools/call aipass_chat` ตอบจาก session จริง (ไม่มี mock)
-3. ถอด Cloudflare ออก (หรือล่ม) → Secretary fallback local bridge อัตโนมัติ
-4. ทุกเทสเดิม (C9, isolated 25, regression 3) ผ่านจาก path ใหม่
+- G1 ไม่มี secret รั่วใน code/comments/docs; fail fast ไม่ fabricate
+- G2 error codes ตาม contract ใน `docs/API-SPEC.md` เท่านั้น
+- G3 deploy ผ่าน blue+red team gates เท่านั้น
+- G4 ทุกการเปลี่ยนแปลง bump version + CHANGELOG (ตาม AGENTS.md)

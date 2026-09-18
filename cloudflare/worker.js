@@ -764,9 +764,27 @@ export default {
     const isPublicHealth = request.method === "GET" &&
       (url.pathname === "/" || url.pathname === "/status" || url.pathname === "/health");
     if (!isPublicHealth) {
-      const allowed = [extToken, apiToken, "aipass-bridge-secret-2026", "hermes-secret-key-2026"].filter(Boolean);
+      const allowed = [extToken, apiToken].filter(Boolean);
       if (allowed.length && (!provided || !allowed.includes(provided))) {
-        return json({ error: { message: "unauthorized", code: "unauthorized" } }, 401);
+        // Error envelope aligned with gemini-web-bridge: OpenAI-style
+        // {"error":{message,type,code}} so OpenAI SDK clients surface it.
+        return json({
+          error: {
+            message: "Invalid or missing API key. Please provide Authorization: Bearer ***",
+            type: "invalid_request_error",
+            code: "invalid_api_key",
+          },
+        }, 401);
+      }
+      if (!allowed.length) {
+        // Fail fast, never fabricate: no secrets configured means no access.
+        return json({
+          error: {
+            message: "Bridge secrets are not configured on this worker (set BRIDGE_SECRET / CLIENT_API_KEY).",
+            type: "bridge_error",
+            code: "secrets_unconfigured",
+          },
+        }, 503);
       }
     }
 

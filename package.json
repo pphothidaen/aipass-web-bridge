@@ -1,7 +1,7 @@
 {
   "name": "aipass-web-bridge",
   "private": true,
-  "version": "0.5.5",
+  "version": "0.6.1",
   "workspaces": [
     "packages/shared",
     "packages/vscode-extension"
@@ -19,5 +19,6 @@
   "devDependencies": {
     "@playwright/test": "^1.63.0",
     "playwright": "^1.63.0"
-  }
+  },
+  "test": "node --test test/test-cf-worker.test.mjs test/test-config-loader.test.mjs packages/vscode-extension/scripts/test-agent-fallback.mjs packages/vscode-extension/scripts/test-crud-unittest.mjs packages/checks-runner/run-check.test.js"
 }

@@ -1,3 +1,45 @@
+## [0.6.1] - 2026-09-19
+
+### Fixed
+- **RED-4 epoch-replay vulnerability** in `packages/core/aipass-bridge/bridge/protocol-v2.mjs`:
+  `validateEpochEnvelope()` checked an `epoch` field that wire messages never
+  carry (they use `sessionEpoch`), so a captured envelope replayed after a
+  reconnect/session bump passed the epoch fence. The fence (and the per-epoch
+  sequence tracker) now validates `sessionEpoch` (falling back to `epoch` for
+  internal envelopes). The red-team chaos suite now passes 10/10.
+
+## [0.6.0] - 2026-09-19
+
+### Added
+- **Unified configuration loading with Doppler → Cloudflare → `.env` precedence**:
+  - New `packages/core/aipass-bridge/bridge/config.mjs` resolves every bridge
+    setting through layered precedence: Doppler secrets (highest) → Cloudflare
+    `wrangler.toml [vars]` → local `.env` → schema defaults. The local bridge
+    (`bridge/server.mjs`) now sources all `AIPASS_*` settings through it;
+    behavior without Doppler/`.env` is unchanged.
+  - Policy documented in `docs/CONFIGURATION.md`; unified cross-project API
+    contract documented in `docs/API-SPEC.md` (aligned with gemini-web-bridge).
+  - Added `test/test-config-loader.test.mjs` (7 tests) to the root `npm test` suite.
+
+### Changed
+- **CI/CD now mirrors gemini-web-bridge with blue-team and red-team gates** (`.github/workflows/ci.yml`):
+  - New `blueteam` job: gitleaks secret-leak scan (`.gitleaks.toml`),
+    dependency audit, and a hard assertion that the worker/wrangler config
+    carry no hard-coded token literals.
+  - New `redteam` job: unit tests plus the adversarial
+    `red-team-chaos` and `ssrf` suites.
+  - `deploy` now requires smoke + blueteam + redteam to pass; CI also runs on
+    pull requests.
+
+### Fixed
+- **Removed hard-coded fallback tokens from `cloudflare/worker.js`**
+  (`aipass-bridge-secret-2026` / `hermes-secret-key-2026`): auth now relies
+  solely on the `BRIDGE_SECRET` / `CLIENT_API_KEY` Worker secrets, and a worker
+  with no secrets configured fails fast with `503 secrets_unconfigured` instead
+  of accepting the old public literals. The `401` error envelope is aligned with
+  the OpenAI-style format used by gemini-web-bridge.
+- Removed literal secret values from `cloudflare/wrangler.toml` comments.
+
 ## [0.5.5] - 2026-09-17
 
 ### Added

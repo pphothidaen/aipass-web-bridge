@@ -9,8 +9,10 @@ bindings = [{ name = "EXT_HUB", class_name = "ExtHub" }]
 tag = "v1"
 new_sqlite_classes = ["ExtHub"]
 
-# Secrets already set on this worker via the Cloudflare dashboard:
-#   BRIDGE_SECRET   (aipass-bridge-secret-2026)  → extension channel /ext/*
-#   CLIENT_API_KEY  (hermes-secret-key-2026)     → API/MCP clients
+# Secrets are set via the Cloudflare dashboard or `npx wrangler secret put` —
+# NEVER commit secret values here (see docs/CONFIGURATION.md for the storage
+# policy: Doppler → Cloudflare secrets → .env, in that order).
+#   BRIDGE_SECRET   → extension channel /ext/*
+#   CLIENT_API_KEY  → API/MCP clients (Authorization: Bearer)
 # Chrome extension popup: Bridge URL = https://aipass-web-bridge.<account>.workers.dev
 # Hermes provider base_url = https://aipass-web-bridge.<account>.workers.dev/v1
