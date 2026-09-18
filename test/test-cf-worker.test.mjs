@@ -258,13 +258,19 @@ test("Chrome Extension: defaults and manifests are properly configured for Kiwi 
 
   const bgSource = fs.readFileSync(path.join(__dirname, "../packages/core/aipass-bridge/extension/background.js"), "utf8");
   assert.ok(bgSource.includes("const DEFAULT_BRIDGE = 'https://aipass-web-bridge.taijustarrett417.workers.dev';"));
-  assert.ok(bgSource.includes("const DEFAULT_REMOTE_TOKEN = 'aipass-bridge-secret-2026';"));
+  // v0.6.2: token is injected at build time by scripts/build-extension.py;
+  // the source tree must carry only the placeholder, never a literal token.
+  assert.ok(bgSource.includes("const DEFAULT_REMOTE_TOKEN = '__BRIDGE_AUTH_TOKEN__';"));
 
   const popupSource = fs.readFileSync(path.join(__dirname, "../packages/core/aipass-bridge/extension/popup.js"), "utf8");
   assert.ok(popupSource.includes("DEFAULT_BRIDGE"));
-  assert.ok(popupSource.includes("DEFAULT_TOKEN"));
 
   const popupHtml = fs.readFileSync(path.join(__dirname, "../packages/core/aipass-bridge/extension/popup.html"), "utf8");
   assert.ok(popupHtml.includes("value=\"https://aipass-web-bridge.taijustarrett417.workers.dev\""));
-  assert.ok(popupHtml.includes("value=\"aipass-bridge-secret-2026\""));
+
+  const extensionFiles = ["background.js", "popup.js", "popup.html", "content.js", "page.js", "offscreen.js", "manifest.json"]
+    .map((f) => fs.readFileSync(path.join(__dirname, "../packages/core/aipass-bridge/extension", f), "utf8"));
+  for (const src of extensionFiles) {
+    assert.ok(!src.includes("aipass-bridge-secret-2026"), "extension source must not contain the retired default token");
+  }
 });

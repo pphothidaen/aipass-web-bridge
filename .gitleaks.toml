@@ -1,12 +1,16 @@
 # gitleaks config: extend the default rules with a targeted allowlist.
+#
+# Since v0.6.2 the extension source carries only the __BRIDGE_AUTH_TOKEN__
+# placeholder (token injected at build time by scripts/build-extension.py),
+# so the extension/release path allowlists are gone on purpose — any literal
+# token there is a leak and must fail the blue-team gate. The remaining
+# allowlist only covers historical references in docs/changelog.
 [extend]
 useDefault = true
 
 [allowlist]
-description = "Known-default bridge token shipped inside the Chrome extension (v0.5.5 Kiwi zero-config flow). Rotating it is tracked as a separate extension release; secrets that matter live in Doppler/Cloudflare only."
+description = "Historical references to the retired v0.5.5 default tokens in docs and changelog only."
 paths = [
-  '''packages/core/aipass-bridge/extension/''',
-  '''release/chrome-extension/''',
   '''^CHANGELOG\.md$''',
   '''^docs/''',
 ]

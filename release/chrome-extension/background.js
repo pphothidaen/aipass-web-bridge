@@ -86,17 +86,22 @@ const bridgeUrl = async () => {
 
 // Optional shared secret for remote bridges (e.g. Cloudflare Worker hub).
 // Sent as a header on every request; the local bridge ignores it.
-const DEFAULT_REMOTE_TOKEN = 'aipass-bridge-secret-2026';
+// Injected at build time by scripts/build-extension.py (Doppler → env).
+// A remaining __…__ placeholder means "not built": send no token header and
+// let the worker answer 401 (fail fast, never fabricate a secret).
+const DEFAULT_REMOTE_TOKEN = '__BRIDGE_AUTH_TOKEN__';
+
+const isUnresolvedToken = (t) => !t || /^__.*__$/.test(t);
 
 const bridgeToken = async () => {
   try {
     const res = await chrome.storage.local.get('bridgeToken');
     const val = res?.bridgeToken ? String(res.bridgeToken).trim() : '';
     if (val) return val;
-    return DEFAULT_REMOTE_TOKEN;
   } catch {
-    return DEFAULT_REMOTE_TOKEN;
+    // storage unavailable — fall through to the built-in token
   }
+  return isUnresolvedToken(DEFAULT_REMOTE_TOKEN) ? '' : DEFAULT_REMOTE_TOKEN;
 };
 
 async function authHeaders() {

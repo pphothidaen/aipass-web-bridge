@@ -1,3 +1,23 @@
+## [0.6.2] - 2026-09-19
+
+### Changed
+- **Chrome extension no longer ships a hard-coded default token** (plan.md item #5,
+  aligned with gemini-web-bridge): `extension/background.js` and `extension/popup.js`
+  now carry a `__BRIDGE_AUTH_TOKEN__` placeholder instead of the published
+  `aipass-bridge-secret-2026` literal. When the placeholder is unresolved the
+  extension sends no token header and the worker answers 401 (fail fast, G1).
+- **New build script `scripts/build-extension.py`**: packages the extension into
+  `release/aipass-bridge-chrome-built/` with the token resolved from Doppler
+  (`--project`/`--config`, defaulting to `$DOPPLER_PROJECT`/`$DOPPLER_CONFIG`)
+  or the `BRIDGE_AUTH_TOKEN` environment variable; the build fails hard if any
+  placeholder remains unresolved. Distribution artifacts must come from this
+  script — the source tree is no longer directly loadable with a working
+  default token (Kiwi zero-config now requires a built artifact or manual
+  token entry in the popup).
+- `.gitleaks.toml`: dropped the extension-path allowlist; the extension source
+  must stay token-free from now on (the CHANGELOG/docs regex allowlist remains
+  for historical references).
+
 ## [0.6.1] - 2026-09-19
 
 ### Fixed

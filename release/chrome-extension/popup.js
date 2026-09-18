@@ -1,7 +1,6 @@
 const $ = (id) => document.getElementById(id);
 
 const DEFAULT_BRIDGE = 'https://aipass-web-bridge.taijustarrett417.workers.dev';
-const DEFAULT_TOKEN = 'aipass-bridge-secret-2026';
 let bridge = DEFAULT_BRIDGE;
 let modelSignature = '';
 let currentAction = null;   // what the hero button does right now
@@ -238,8 +237,8 @@ async function render() {
   }
   if (document.activeElement !== $('token')) {
     const savedToken = saved?.bridgeToken;
-    $('token').value = savedToken || DEFAULT_TOKEN;
-    $('token').placeholder = `${DEFAULT_TOKEN} (default)`;
+    $('token').value = savedToken || '';
+    $('token').placeholder = 'token injected at build time (scripts/build-extension.py)';
   }
 }
 
@@ -265,7 +264,7 @@ $('model').addEventListener('change', async () => {
 $('save').addEventListener('click', async () => {
   const url = $('url').value.trim().replace(/\/+$/, '') || DEFAULT_BRIDGE;
   if (!/^https?:\/\/.+/i.test(url)) return toast('Enter a full http:// or https:// URL');
-  let token = $('token').value.trim() || DEFAULT_TOKEN;
+  let token = $('token').value.trim();
   await chrome.storage.local.set({ bridgeUrl: url, bridgeToken: token, userConfigured: true });
   await chrome.runtime.sendMessage({ type: 'reconnect' }).catch(() => {});
   bridge = url;

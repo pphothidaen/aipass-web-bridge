@@ -1,6 +1,6 @@
 # PLAN — aipass-web-bridge: การปรับแนวคิดและ API Spec ให้ตรงกับ gemini-web-bridge
 
-อัปเดต: 2026-09-19 · เวอร์ชัน 0.6.1 (RED-4 แก้แล้ว · npm test 32/32 · red-team 10/10 · ยังไม่ push/deploy)
+อัปเดต: 2026-09-19 · เวอร์ชัน 0.6.2 (RED-4 แก้แล้ว · token placeholder เสร็จ · npm test 32/32 · nested 165/165 · red-team 10/10 · ssrf 5/5)
 
 > เอกสารอ้างอิงหลัก (จาก `/Users/kimlenglim/Project/gemini-web-bridge`):
 > `cloudflare-worker/src/index.js` (API spec), `.github/workflows/ci.yml`
@@ -44,10 +44,16 @@
 3. **ตรวจสอบ Cloudflare secrets ก่อน deploy** — `BRIDGE_SECRET` / `CLIENT_API_KEY`
    ต้องตั้งไว้บน worker แล้ว ไม่งั้น deploy ชุดใหม่แล้ว extension/API โดน 401 ทันที
    (ตรวจด้วย `curl -H "x-bridge-token: <token>" https://.../bridge/message` หลัง deploy)
-4. ~~Commit งาน~~ — **เสร็จ**: nested repo `3e0d040` (main) แล้ว commit repo หลัก
-5. **(ถัดไป, optional)** ย้าย default token ใน extension (v0.5.5 Kiwi zero-config)
-   ไปเป็นค่าจาก Doppler/build-time substitution แบบ gemini-web-bridge
-   (`__BRIDGE_AUTH_TOKEN__` placeholder) — ต้องออก extension version ใหม่
+4. ~~Commit งาน~~ — **เสร็จ**: nested repo `3e0d040` → `f665e72` (v0.3.0 brain/orchestrator
+   batch + extension v0.6.2) แล้ว commit repo หลัก
+5. ~~ย้าย default token ไป build-time substitution~~ — **เสร็จ (v0.6.2)**:
+   extension ใช้ `__BRIDGE_AUTH_TOKEN__` placeholder (background.js/popup.js/popup.html),
+   เพิ่ม `scripts/build-extension.py` ฉีดค่าจาก Doppler → env (fail hard ถ้าเหลือ placeholder),
+   `.gitleaks.toml` ตัด allowlist path ของ extension ออก, test กลับ assertion ให้ห้ามมี
+   literal token ใน extension source — **Kiwi zero-config หมดไป**: ติดตั้งจาก
+   `release/aipass-bridge-chrome-built/` (build ด้วย script) หรือกรอก token ใน popup
+6. **(ค้าง)** สร้าง built artifact/zip รุ่น 0.6.2 จริง — ต้องมี `BRIDGE_AUTH_TOKEN`
+   จาก Doppler หรือ env ก่อน (source zip ล้วนจะไม่ทำงานเพราะ placeholder ไม่ถูกแทน)
 
 ## กฎที่ต้องรักษาไว้ (สืบทอดจาก gemini-web-bridge GUARDRAILS)
 
