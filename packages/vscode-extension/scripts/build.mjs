@@ -6,8 +6,6 @@ const extensionRoot = resolve(import.meta.dirname, '..');
 const sharedDist = resolve(extensionRoot, '../shared/dist');
 const sharedOutput = resolve(extensionRoot, 'out/shared');
 const extensionOutput = resolve(extensionRoot, 'out/extension.js');
-const bridgeSource = resolve(extensionRoot, '../core/aipass-bridge/bridge/server.mjs');
-const bridgeOutput = resolve(extensionRoot, 'out/bridge/server.mjs');
 const sharedRuntime = resolve(extensionRoot, 'out/shared');
 
 execFileSync('tsc', ['-p', resolve(extensionRoot, 'tsconfig.json')], {
@@ -17,8 +15,6 @@ execFileSync('tsc', ['-p', resolve(extensionRoot, 'tsconfig.json')], {
 
 mkdirSync(dirname(sharedOutput), { recursive: true });
 cpSync(sharedDist, sharedOutput, { recursive: true });
-mkdirSync(dirname(bridgeOutput), { recursive: true });
-cpSync(bridgeSource, bridgeOutput);
 
 function rewriteSharedImports(directory) {
   for (const entry of readdirSync(directory)) {

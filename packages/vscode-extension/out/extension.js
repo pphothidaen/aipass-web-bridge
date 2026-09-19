@@ -36,37 +36,17 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.activate = activate;
 exports.deactivate = deactivate;
 const vscode = __importStar(require("vscode"));
-const node_fs_1 = require("node:fs");
 const node_path_1 = require("node:path");
-const node_child_process_1 = require("node:child_process");
 const shared_1 = require("./shared");
 const aipassViewProvider_1 = require("./ui/aipassViewProvider");
 const context_1 = require("./core/context");
 const audit_1 = require("./core/audit");
-let bridgeProcess;
-let bridgeStartPromise;
 function getClient() {
-    const baseUrl = vscode.workspace.getConfiguration('aipass').get('bridgeUrl', 'http://127.0.0.1:8787');
+    const baseUrl = vscode.workspace.getConfiguration('aipass').get('bridgeUrl', 'https://aipass-web-bridge.taijustarrett417.workers.dev');
     return new shared_1.BridgeClient(baseUrl);
 }
 function getBridgeUrl() {
-    return vscode.workspace.getConfiguration('aipass').get('bridgeUrl', 'http://127.0.0.1:8787');
-}
-function getBridgeServerPath(context) {
-    const configuredPath = vscode.workspace.getConfiguration('aipass').get('bridgePath', '').trim();
-    const candidates = configuredPath
-        ? [configuredPath]
-        : [
-            (0, node_path_1.resolve)(context.extensionPath, 'out/bridge/server.mjs'),
-            (0, node_path_1.resolve)(context.extensionPath, '../core/aipass-bridge/bridge'),
-            ...(vscode.workspace.workspaceFolders ?? []).map(folder => (0, node_path_1.resolve)(folder.uri.fsPath, 'packages/core/aipass-bridge/bridge')),
-        ];
-    for (const directory of candidates) {
-        const serverPath = directory.endsWith('.mjs') ? directory : (0, node_path_1.join)(directory, 'server.mjs');
-        if ((0, node_fs_1.existsSync)(serverPath))
-            return serverPath;
-    }
-    return undefined;
+    return vscode.workspace.getConfiguration('aipass').get('bridgeUrl', 'https://aipass-web-bridge.taijustarrett417.workers.dev');
 }
 async function isBridgeRunning() {
     try {
@@ -79,71 +59,10 @@ async function isBridgeRunning() {
         return false;
     }
 }
-async function waitForBridge() {
-    for (let attempt = 0; attempt < 20; attempt += 1) {
-        if (await isBridgeRunning())
-            return true;
-        await new Promise(resolvePromise => setTimeout(resolvePromise, 250));
-    }
-    return false;
-}
-async function startBridgeServer(context, output, notify) {
-    if (await isBridgeRunning()) {
-        if (notify)
-            vscode.window.showInformationMessage('AiPASS bridge กำลังทำงานอยู่แล้ว');
-        return true;
-    }
-    if (bridgeStartPromise)
-        return bridgeStartPromise;
-    bridgeStartPromise = (async () => {
-        const serverPath = getBridgeServerPath(context);
-        if (!serverPath) {
-            if (notify) {
-                const action = await vscode.window.showErrorMessage('ไม่พบ embedded AiPASS app server', 'ตั้งค่า aipass.bridgePath');
-                if (action)
-                    await vscode.commands.executeCommand('workbench.action.openSettings', '@ext:pphothidaen.aipass-vscode-extension aipass.bridgePath');
-            }
-            return false;
-        }
-        const storagePath = context.globalStorageUri.fsPath;
-        (0, node_fs_1.mkdirSync)(storagePath, { recursive: true });
-        output.show(true);
-        output.appendLine(`กำลังเริ่ม embedded app server: ${serverPath}`);
-        bridgeProcess = (0, node_child_process_1.spawn)(process.execPath, [serverPath], {
-            cwd: storagePath,
-            env: {
-                ...process.env,
-                ELECTRON_RUN_AS_NODE: '1',
-                AIPASS_MODEL_CACHE_FILE: (0, node_path_1.join)(storagePath, 'models.json'),
-            },
-            stdio: ['ignore', 'pipe', 'pipe'],
-        });
-        bridgeProcess.stdout?.on('data', data => output.append(data.toString()));
-        bridgeProcess.stderr?.on('data', data => output.append(data.toString()));
-        bridgeProcess.once('error', (error) => {
-            output.appendLine(`เริ่ม app server ไม่สำเร็จ: ${error.message}`);
-            bridgeProcess = undefined;
-        });
-        bridgeProcess.once('exit', () => {
-            bridgeProcess = undefined;
-        });
-        const running = await waitForBridge();
-        if (notify) {
-            if (running)
-                vscode.window.showInformationMessage('AiPASS app server เริ่มทำงานแล้ว');
-            else
-                vscode.window.showErrorMessage('เริ่ม AiPASS app server แล้ว แต่ยังเชื่อมต่อไม่ได้ ดูรายละเอียดในช่อง AiPASS');
-        }
-        return running;
-    })().finally(() => {
-        bridgeStartPromise = undefined;
-    });
-    return bridgeStartPromise;
-}
 function activate(context) {
     const output = vscode.window.createOutputChannel('AiPASS');
     const extensionVersion = String(context.extension?.packageJSON?.version || '0.1.30');
-    const provider = new aipassViewProvider_1.AipassViewProvider(context.extensionUri, getClient, context_1.getProjectContext, details => void (0, audit_1.recordContextAccess)(context, details), () => startBridgeServer(context, output, false), extensionVersion, context.workspaceState, context.globalState);
+    const provider = new aipassViewProvider_1.AipassViewProvider(context.extensionUri, getClient, context_1.getProjectContext, details => void (0, audit_1.recordContextAccess)(context, details), undefined, extensionVersion, context.workspaceState, context.globalState);
     context.subscriptions.push(vscode.window.registerWebviewViewProvider(aipassViewProvider_1.AipassViewProvider.viewType, provider));
     const originalContentProvider = new class {
         provideTextDocumentContent(uri) {
@@ -154,7 +73,7 @@ function activate(context) {
     };
     context.subscriptions.push(vscode.workspace.registerTextDocumentContentProvider('aipass-original', originalContentProvider));
     const startBridge = vscode.commands.registerCommand('aipass.startBridge', async () => {
-        await startBridgeServer(context, output, true);
+        vscode.window.showInformationMessage('AiPASS: ไม่มี local bridge แล้ว ใช้ Cloudflare Worker โดยตรง ผ่าน aipass.bridgeUrl');
     });
     const testConnection = vscode.commands.registerCommand('aipass.testConnection', async () => {
         const client = getClient();
@@ -225,9 +144,7 @@ function activate(context) {
         await vscode.commands.executeCommand('workbench.view.extension.aipass-sidebar');
     });
     context.subscriptions.push(startBridge, testConnection, ask, generateUnitTest, runCheckLocally, openSidebar, output);
-    void startBridgeServer(context, output, false);
 }
 function deactivate() {
-    bridgeProcess?.kill();
-    bridgeProcess = undefined;
+    // no local bridge to stop
 }

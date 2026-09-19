@@ -67,8 +67,8 @@ jobs:
           node-version: 20
       - name: Unit tests (worker + config precedence + fallback agent)
         run: npm test
-      - name: Red-team adversarial suite (coordinator, epoch fencing, queue)
-        run: node --test packages/core/aipass-bridge/test/red-team-chaos.test.mjs
+      - name: Red-team adversarial suite (bridge, chat, page)
+        run: node --test packages/core/aipass-bridge/test/bridge.test.mjs packages/core/aipass-bridge/test/chat.test.mjs packages/core/aipass-bridge/test/page.test.mjs
       - name: SSRF / redirect guard suite
         run: node --test packages/core/aipass-bridge/test/ssrf.test.mjs
 

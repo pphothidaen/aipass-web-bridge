@@ -10,8 +10,11 @@ import {
   decodeTurboStream,
   findValue,
   extractModels,
-  CONVERSATIONS_LOADER_URL,
 } from "../cloudflare/worker.js";
+
+const CONVERSATIONS_LOADER_URL = "/loaders/list-conversations.data?_routes=routes%2Floaders%2Flist-converstaions";
+const MODELS_LOADER_URL = "/loaders/list-models.data?_routes=routes%2Floaders%2Flist-models";
+const MODEL_FALLBACK = ["gemini-3.1-flash-lite", "claude-sonnet-5@default"];
 
 test("decodeTurboStream: parses turbo-stream flat reference pools correctly", () => {
   const turboPayload = JSON.stringify([

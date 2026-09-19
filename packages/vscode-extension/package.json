@@ -84,11 +84,6 @@
           "default": "https://aipass-web-bridge.taijustarrett417.workers.dev",
           "description": "URL ของ aipass bridge"
         },
-        "aipass.bridgePath": {
-          "type": "string",
-          "default": "",
-          "description": "โฟลเดอร์ที่มี server.mjs ของ aipass bridge (เว้นว่างเพื่อค้นหาอัตโนมัติ)"
-        },
         "aipass.agent.enabled": {
           "type": "boolean",
           "default": true,
