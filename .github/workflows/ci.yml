@@ -109,7 +109,7 @@ jobs:
           # Build Chrome extension with injected token
           python3 scripts/build-extension.py --output release/aipass-bridge-chrome-built
           # Create versioned zip (e.g. aipass-bridge-v0.6.5.zip)
-          VERSION=$(node -p "require('./packages/core/aipass-bridge/extension/manifest.json').version")
+          VERSION=$(node -p "require('./release/aipass-bridge-chrome-built/manifest.json').version")
           cd release/aipass-bridge-chrome-built
           zip -qr ../aipass-bridge-v${VERSION}.zip .
           cd ../..
