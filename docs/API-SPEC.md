@@ -69,9 +69,3 @@ OpenAI request/response. Extras:
   {jobId, finishReason}`, `/ext/error {jobId, message}`, `/ext/loader
   {jobId, raw?, message?}`, `/ext/tab {tabId, url, jobId, kind}`.
 - Job timeouts: 120s chat/create, 30s others; FIFO queue max 10.
-
-## Local bridge extras (aipass only, no auth, host-allowlist protected)
-
-`/quota`, `/credits`, `/conversations(/new)`, `/assistants` CRUD,
-`/style-options`, `/video-options`, `POST /config`, admin routes behind
-`AIPASS_ADMIN=1`.

@@ -81,7 +81,7 @@
       "properties": {
         "aipass.bridgeUrl": {
           "type": "string",
-          "default": "http://127.0.0.1:8787",
+          "default": "https://aipass-web-bridge.taijustarrett417.workers.dev",
           "description": "URL ของ aipass bridge"
         },
         "aipass.bridgePath": {

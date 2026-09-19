@@ -44,7 +44,7 @@
 
 ## ⏳ ค้างสำหรับ session ถัดไป
 
-1. การสร้าง built extension artifact/zip ด้วย secret จริง: รัน `BRIDGE_AUTH_TOKEN="<token>" python3 scripts/build-extension.py --zip` เมื่อผู้ใช้พร้อมระบุ token
+1. ~~การสร้าง built extension artifact/zip ด้วย secret จริง~~ — **เสร็จสมบูรณ์**: สร้าง `release/aipass-bridge-chrome-built/` และ `release/aipass-bridge-chrome-built.zip` พร้อมฉีด token เรียบร้อย, ตรวจสอบไม่มี placeholder หลงเหลือ, ผ่าน unit tests (32/32) และ red-team adversarial suites (15/15)
 2. ⚠️ ไฟล์ `/Users/kimlenglim/Project/HoroConsultant/.env` มี live secrets หลายตัว
    (Doppler/GitHub PAT/Azure/Cloudflare token ฯลฯ) และบรรทัด 92 value ต่อกันจน parse
    ไม่ได้ — แจ้งผู้ใช้แล้ว, ไม่เกี่ยวกับ aipass

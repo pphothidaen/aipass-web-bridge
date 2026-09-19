@@ -15,7 +15,7 @@ import requests
 # ------------------------------------------------------------
 # Configuration
 # ------------------------------------------------------------
-BRIDGE_URL = os.environ.get("AIPASS_BRIDGE_URL", "http://127.0.0.1:8787")
+BRIDGE_URL = os.environ.get("AIPASS_BRIDGE_URL", "https://aipass-web-bridge.taijustarrett417.workers.dev")
 CONSULTANT_MODEL = os.environ.get("CONSULTANT_MODEL", "claude-sonnet-5")
 MAX_TOKENS = int(os.environ.get("SECRETARY_MAX_TOKENS", "2048"))
 SKILLS_DIR = Path(os.environ.get("SECRETARY_SKILLS_DIR", "skills")).resolve()

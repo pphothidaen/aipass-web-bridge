@@ -14,7 +14,7 @@ All notable changes to **AiPASS Dev Suite** are documented here.
 
 - **Secretary (Middle Gateway) Module** (`secretary.py`):
   - Middle Gateway ที่ทำหน้าที่เป็น Context Curator และ Routing Layer ระหว่าง User/Hermes Agent กับ Sonnet 5 Consultant
-  - รองรับการ Consult ผ่าน AIPASS Bridge (`http://127.0.0.1:8787/v1/chat/completions`) ด้วย model `gemini-3.1-pro-preview`
+  - รองรับการ Consult ผ่าน AIPASS Bridge (`https://aipass-web-bridge.taijustarrett417.workers.dev/v1/chat/completions`) ด้วย model `gemini-3.1-pro-preview`
   - มีระบบตรวจสอบ Bridge availability อัตโนมัติ พร้อม fallback เป็น shell commands เมื่อ Bridge ไม่ว่าง
 
 - **Automated Verification** (ตรวจสอบผลลัพธ์อัตโนมัติ):

@@ -121,7 +121,7 @@ SKILLS_DIR.mkdir(parents=True, exist_ok=True)
 # ============================
 # Configuration
 # ============================
-AIPASS_BRIDGE_URL = os.environ.get("AIPASS_BRIDGE_URL", "http://127.0.0.1:8787")
+AIPASS_BRIDGE_URL = os.environ.get("AIPASS_BRIDGE_URL", "https://aipass-web-bridge.taijustarrett417.workers.dev")
 CONSULTANT_MODEL = os.environ.get("CONSULTANT_MODEL", "claude-sonnet-5@default")
 
 # Model the secretary actually sends. Starts as the requested CONSULTANT_MODEL;
