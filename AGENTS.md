@@ -33,3 +33,27 @@
 - Package the complete directory `packages/core/aipass-bridge/extension` without the local Node bridge; produce both a load-unpacked directory and a versioned ZIP.
 - Bump the version in `manifest.json` and document changes in its release notes.
 - Validate `manifest.json`, all referenced scripts/pages, JavaScript syntax, and ZIP integrity before release.
+
+## Pre-Flight Work Audit (Mandatory Before Starting New Work)
+
+- **Audit Completed Work First**: Before starting any new task or feature, agents must:
+  1. Review `plan.md` and `HANDOFF.md` to establish an accurate understanding of the latest state and completed work.
+  2. Verify that previous work passed tests and has no uncommitted regressions.
+  3. Verify CI/CD pipeline status and production worker health (`https://aipass-web-bridge.taijustarrett417.workers.dev/status`).
+  4. Ensure git status and submodule (`packages/core`) are clean and properly synced.
+
+## Blue Team & Red Team with TDD Governance
+
+- **Test-Driven Development (TDD)**:
+  - Write tests first (Red) before writing implementation code for any new feature or bug fix.
+  - Implement minimum required code to make tests pass (Green).
+  - Refactor while ensuring 100% test pass rate (`npm test`). Never disable or bypass test assertions.
+- **Blue Team (Defensive Gates & Hygiene)**:
+  - Strict Zero-Token-Leak (GUARDRAILS G1): No hardcoded secrets in source files, docs, or configs.
+  - Built extension artifacts with real tokens (`release/*-built*/`) must remain strictly in `.gitignore`.
+  - Pass `gitleaks` secret scan and `npm audit` dependency security checks.
+- **Red Team (Offensive Adversarial Gates)**:
+  - All changes must pass adversarial suites before release:
+    - `packages/core/aipass-bridge/test/red-team-chaos.test.mjs` (RED-1 to RED-5b: split-brain, upstream 403 injection, failover, epoch-replay, queue overflow).
+    - `packages/core/aipass-bridge/test/ssrf.test.mjs` (SSRF and network isolation).
+  - CI gates (`smoke`, `blueteam`, `redteam`, `deploy`) must all pass green on GitHub Actions.

@@ -11,3 +11,12 @@
 ## Extensions Release Guidelines
 
 - See detailed release instructions in [AGENTS.md](./AGENTS.md).
+
+## Pre-Flight Work Audit & TDD (Mandatory Workflow)
+
+1. **Pre-Flight Audit**: Always inspect and verify past completed work in `plan.md` and `HANDOFF.md`, verify CI/CD run status, and test production health before starting any new task.
+2. **TDD (Test-Driven Development)**: Write failing tests (Red) before implementation, make them pass (Green), and refactor without lowering test coverage.
+3. **Blue Team & Red Team Security**:
+   - Blue Team: Zero token leaks in source files/configs, `gitleaks` verification, build-time token injection.
+   - Red Team: Pass all adversarial chaos tests (`red-team-chaos.test.mjs`, `ssrf.test.mjs`) for split-brain, epoch-replay, failover, and queue overflow before any push.
+4. **Architectural Guardrails**: Follow the 5 pillars in [GUARDRAILS.md](./GUARDRAILS.md) (Security, Integrity, Isolation, Quality Gates, Fallback Governance).

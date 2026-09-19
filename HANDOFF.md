@@ -1,6 +1,6 @@
-# HANDOFF — aipass-web-bridge v0.6.3 (CI/CD-to-production checkpoint)
+# HANDOFF — aipass-web-bridge v0.6.4 (Governance, Guardrails & TDD Checkpoint)
 
-อัปเดต: 2026-09-19 · Asia/Bangkok · สถานะ: **v0.6.3 commit+push แล้ว · รอ GitHub Actions 4 jobs เขียวและ deploy ผ่าน**
+อัปเดต: 2026-09-19 · Asia/Bangkok · สถานะ: **v0.6.4 บรรจุ Governance, กฎเหล็ก GUARDRAILS.md 5 เสาหลัก, Pre-Flight Audit, และ TDD กฎถาวรเรียบร้อย**
 
 > เอกสารหลักของ checkpoint นี้คือ `plan.md` (สถานะ + ลำดับงานที่เหลือ)
 > กฎทอง: จบทุก session ต้องอัปเดต `plan.md` + `handoff.md` ให้เป็นปัจจุบันเสมอ
@@ -14,7 +14,7 @@
      `git filter-branch --env-filter` rewrite 12 commits เป็น
      `13300464+pphothidaen@users.noreply.github.com` + ตั้ง `git config user.email`
      ทั้งสอง repo (สำคัญ: commit ใหม่ต้องใช้ noreply เสมอ ไม่งั้น push โดน reject อีก)
-   - push แล้ว: fork `10c8f2e → a291387` (main), repo หลัก `cc4c24f → 517df21 → …` (master)
+   - push แล้ว: fork `10c8f2e → a291387` (main), repo หลัก `cc4c24f → 517df21 → 75d0f66` (master)
 2. **พบ+แก้บั๊กที่ทำให้ CI ผ่านไม่ได้เลย (v0.6.3)**
    - อาการ: redteam job fail ENOENT `packages/core/aipass-bridge/extension/manifest.json`
      บน runner — ในเครื่องผ่านเพราะมี nested repo อยู่จริง
@@ -28,17 +28,20 @@
 3. **กฎ version sync**: root `package.json` = `extension/manifest.json` (submodule) =
    `release/chrome-extension/manifest.json` — test-cf-worker assert ทั้งสามชุดเท่ากัน
    ตอนนี้เป็น 0.6.3 (commit `a291387` ใน fork + gitlink อัปเดตใน repo หลัก)
+4. **CI/CD ผ่านครบ 4 Jobs บน GitHub Actions (Run #35417350904)**:
+   - `smoke` (Syntax & Live Smoke Gate) — ผ่าน
+   - `blueteam` (Gitleaks, Audit, Secret Hygiene) — ผ่าน
+   - `redteam` (Unit Tests, Red-team Chaos, SSRF Suite) — ผ่าน
+   - `deploy` (Wrangler Deploy & Post-deploy smoke) — สำเร็จ
+   - ผลตรวจ Production: `curl https://aipass-web-bridge.taijustarrett417.workers.dev/status` ตอบ `ok: true`, 36 models, extension CONNECTED
+5. **Git Hygiene สำหรับ Extension Build**:
+   - เพิ่ม `release/*-built*/` และ `release/*-built*.zip` ใน `.gitignore` เพื่อรับประกันตาม GUARDRAILS G1 ว่า token ที่ฉีดเข้า artifact จะไม่ถูก stage เข้า git
 
 ## ⏳ ค้างสำหรับ session ถัดไป
 
-1. ดูผล GitHub Actions ของ push 0.6.3: `gh run watch` — ต้อง smoke+blueteam+redteam
-   เขียวและ deploy รันจริง (secret `CLOUDFLARE_API_TOKEN` ตั้งแล้ว 2026-09-17) ·
-   ถ้า fail ให้อ่าน `--log-failed` แก้แล้ว push ใหม่จนครบ (definition of done)
-2. หลัง deploy ผ่าน: ยืนยัน production version ใหม่ + smoke `{"ok":true}` จาก
-   post-deploy step แล้วอัปเดต plan/handoff ปิดจob
-3. สร้าง built extension artifact/zip — ต้องมี `BRIDGE_AUTH_TOKEN` จาก Doppler/env
+1. สร้าง built extension artifact/zip — ต้องมี `BRIDGE_AUTH_TOKEN` จาก Doppler/env
    (`python3 scripts/build-extension.py`) — source zip ล้วนใช้ไม่ได้ (placeholder)
-4. ⚠️ ไฟล์ `/Users/kimlenglim/Project/HoroConsultant/.env` มี live secrets หลายตัว
+2. ⚠️ ไฟล์ `/Users/kimlenglim/Project/HoroConsultant/.env` มี live secrets หลายตัว
    (Doppler/GitHub PAT/Azure/Cloudflare token ฯลฯ) และบรรทัด 92 value ต่อกันจน parse
    ไม่ได้ — แจ้งผู้ใช้แล้ว, ไม่เกี่ยวกับ aipass
 

@@ -1,6 +1,6 @@
 # PLAN — aipass-web-bridge: การปรับแนวคิดและ API Spec ให้ตรงกับ gemini-web-bridge
 
-อัปเดต: 2026-09-19 · เวอร์ชัน 0.6.3 (CI/CD ผ่าน gates ครบ · submodule จดทะเบียนแล้ว · push ทั้งสอง repo)
+อัปเดต: 2026-09-19 · เวอร์ชัน 0.6.4 (Governance, Guardrails, TDD rules, Git hygiene guard, Submodule v0.6.4 synced)
 
 > เอกสารอ้างอิงหลัก (จาก `/Users/kimlenglim/Project/gemini-web-bridge`):
 > `cloudflare-worker/src/index.js` (API spec), `.github/workflows/ci.yml`
@@ -69,9 +69,15 @@ deploy production ผ่าน post-deploy smoke
   เปล่า ไม่มี `.gitmodules` → checkout บน GitHub ไม่มีเนื้อหา nested repo →
   redteam ENOENT · แก้: จดทะเบียน submodule ชี้ fork สาธารณะ + `submodules: recursive`
   ใน checkout ของ blueteam/redteam + sync gitlink ทุกครั้งที่ nested repo ขยับ
-- **ลำดับที่ต้องทำต่อ**: commit 0.6.3 (มี .gitmodules + ci.yml + CHANGELOG +
-  plan/handoff) → push → `gh run watch` จน 4 jobs เขียว → deploy job ต้องรันจริง
-  (secret `CLOUDFLARE_API_TOKEN` ตั้งแล้ว) → ยืนยัน post-deploy smoke ผ่าน
+- **ผลลัพธ์ CI/CD ล่าสุด (v0.6.3 — Run #35417350904)**:
+  - push commit `75d0f66` สำเร็จ
+  - GitHub Actions 4 jobs ผ่านครบ 100%:
+    - `smoke`: ผ่าน (syntax + live smoke)
+    - `blueteam`: ผ่าน (gitleaks + npm audit + secret-hygiene)
+    - `redteam`: ผ่าน (unit tests + red-team-chaos + ssrf)
+    - `deploy`: รันจริงสำเร็จ Cloudflare Worker deployed + post-deploy smoke ผ่าน (`"ok": true`)
+  - ยืนยันสถานะ Worker ที่ `https://aipass-web-bridge.taijustarrett417.workers.dev/status` ตอบ `ok: true`, `extension: CONNECTED`, `models: 36`
+- **งานค้าง**: สร้าง built extension artifact เมื่อผู้ใช้ระบุ `BRIDGE_AUTH_TOKEN` (เพิ่ม guard ใน `.gitignore` แล้ว)
 
 ## กฎที่ต้องรักษาไว้ (สืบทอดจาก gemini-web-bridge GUARDRAILS)
 

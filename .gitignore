@@ -10,3 +10,7 @@ node_modules/
 # Python
 __pycache__/
 *.pyc
+
+# Built extension artifacts with real tokens injected (GUARDRAILS G1)
+release/*-built*/
+release/*-built*.zip
