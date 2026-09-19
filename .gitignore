@@ -14,3 +14,8 @@ __pycache__/
 # Built extension artifacts with real tokens injected (GUARDRAILS G1)
 release/*-built*/
 release/*-built*.zip
+
+# Secrets & build artifacts
+.env
+release/*.zip
+release/aipass-bridge-chrome-built/

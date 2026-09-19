@@ -100,3 +100,26 @@ jobs:
         run: |
           sleep 5
           curl -s --max-time 15 https://aipass-web-bridge.taijustarrett417.workers.dev/status | grep -q '"ok": *true' || (echo "POST-DEPLOY FAILED" && exit 1)
+
+      - name: Build extension + zip artifact
+        if: steps.guard.outputs.skip == 'false'
+        env:
+          BRIDGE_AUTH_TOKEN: ${{ secrets.BRIDGE_AUTH_TOKEN }}
+        run: |
+          # Build Chrome extension with injected token
+          python3 scripts/build-extension.py --output release/aipass-bridge-chrome-built
+          # Create versioned zip (e.g. aipass-bridge-v0.6.5.zip)
+          VERSION=$(node -p "require('./packages/core/aipass-bridge/extension/manifest.json').version")
+          cd release/aipass-bridge-chrome-built
+          zip -qr ../aipass-bridge-v${VERSION}.zip .
+          cd ../..
+          echo "Created: release/aipass-bridge-v${VERSION}.zip"
+          ls -la release/aipass-bridge-v*.zip
+
+      - name: Upload extension artifact
+        if: steps.guard.outputs.skip == 'false'
+        uses: actions/upload-artifact@v4
+        with:
+          name: aipass-bridge-extension
+          path: release/aipass-bridge-v*.zip
+          retention-days: 30

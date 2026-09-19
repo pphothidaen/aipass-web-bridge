@@ -9,28 +9,52 @@
 // for the web UI, so there is nothing to reconstruct on this side.
 import http from 'node:http';
 import { randomUUID } from 'node:crypto';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { loadConfig } from './config.mjs';
 
-const PORT = Number(process.env.AIPASS_PORT ?? 8787);
-const HOST = process.env.AIPASS_HOST ?? '127.0.0.1';
+// Config precedence (highest wins): Doppler → Cloudflare wrangler vars → .env
+// → defaults. See bridge/config.mjs and docs/CONFIGURATION.md.
+const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
+const CFG = await loadConfig({
+  PORT: { env: 'AIPASS_PORT', type: 'number', default: 8787 },
+  HOST: { env: 'AIPASS_HOST', type: 'string', default: '127.0.0.1' },
+  STATEFUL_COORDINATOR: { env: 'AIPASS_STATEFUL_COORDINATOR', type: 'boolean', default: true },
+  MODELS: { env: 'AIPASS_MODELS', type: 'string', default: 'gemini-3.1-flash-lite,claude-sonnet-5@default' },
+  TOOL_VISIBILITY: { env: 'AIPASS_TOOL_VISIBILITY', type: 'string', default: 'reasoning' },
+  CONVERSATION_ID: { env: 'AIPASS_CONVERSATION_ID', type: 'string', default: '' },
+  IDLE_TIMEOUT_MS: { env: 'AIPASS_IDLE_TIMEOUT_MS', type: 'number', default: 180_000 },
+  MEDIA_TIMEOUT_MS: { env: 'AIPASS_MEDIA_TIMEOUT_MS', type: 'number', default: 900_000 },
+  KEEPALIVE_MS: { env: 'AIPASS_KEEPALIVE_MS', type: 'number', default: 15_000 },
+  MODEL: { env: 'AIPASS_MODEL', type: 'string', default: 'gemini-3.1-flash-lite' },
+  ASSISTANT_ID: { env: 'AIPASS_ASSISTANT_ID', type: 'string', default: '' },
+  ASSISTANT_FIELD: { env: 'AIPASS_ASSISTANT_FIELD', type: 'string', default: 'aiAssistantId' },
+  ASPECT_RATIO: { env: 'AIPASS_ASPECT_RATIO', type: 'string', default: '1:1' },
+  CORS_ORIGIN: { env: 'AIPASS_CORS_ORIGIN', type: 'string', default: '' },
+  ADMIN: { env: 'AIPASS_ADMIN', type: 'boolean', default: false },
+  ALLOWED_HOSTS: { env: 'AIPASS_ALLOWED_HOSTS', type: 'string', default: '' },
+}, { root: REPO_ROOT, dotenvPath: path.join(REPO_ROOT, 'packages/core/aipass-bridge/.env') });
+
+const PORT = CFG.PORT;
+const HOST = CFG.HOST;
 
 // Feature flag: when AIPASS_STATEFUL_COORDINATOR=0, falls back to legacy stateless relay
 // (no epoch fencing, no FIFO queue, no leader election). Default: enabled.
-const STATEFUL_COORDINATOR = process.env.AIPASS_STATEFUL_COORDINATOR !== '0';
-const MODELS_FALLBACK = (process.env.AIPASS_MODELS ?? 'gemini-3.1-flash-lite,claude-sonnet-5@default')
-  .split(',').map((s) => s.trim()).filter(Boolean);
+const STATEFUL_COORDINATOR = CFG.STATEFUL_COORDINATOR !== false;
+const MODELS_FALLBACK = CFG.MODELS.split(',').map((s) => s.trim()).filter(Boolean);
 // Where upstream tool activity (web_search progress, sources) goes:
 // 'reasoning' -> delta.reasoning_content, 'text' -> inline, 'off' -> dropped.
-const TOOL_VISIBILITY = process.env.AIPASS_TOOL_VISIBILITY ?? 'reasoning';
-const PINNED_CONVERSATION = process.env.AIPASS_CONVERSATION_ID ?? '';
-const IDLE_TIMEOUT_MS = Number(process.env.AIPASS_IDLE_TIMEOUT_MS ?? 180_000);
+const TOOL_VISIBILITY = CFG.TOOL_VISIBILITY;
+const PINNED_CONVERSATION = CFG.CONVERSATION_ID;
+const IDLE_TIMEOUT_MS = CFG.IDLE_TIMEOUT_MS;
 // Rendering a video or a music clip can go quiet for minutes at a stretch. The
 // timeout is on silence, not on total time, but three minutes of it is normal
 // here and would kill a generation that was going to succeed — and the credits
 // are already spent by then.
-const MEDIA_TIMEOUT_MS = Number(process.env.AIPASS_MEDIA_TIMEOUT_MS ?? 900_000);
+const MEDIA_TIMEOUT_MS = CFG.MEDIA_TIMEOUT_MS;
 // How often a streaming response emits an SSE comment when it has nothing else
 // to say. Comfortably inside the 300s body timeout that Node's own fetch applies.
-const KEEPALIVE_MS = Number(process.env.AIPASS_KEEPALIVE_MS ?? 15_000);
+const KEEPALIVE_MS = CFG.KEEPALIVE_MS;
 // Attachments up to MAX_ATTACHMENT_BYTES travel Base64-inlined in a JSON
 // envelope, which costs a third again plus escaping — the client-facing cap has
 // to hold that whole envelope or the advertised 20 MB file is undeliverable.
@@ -40,15 +64,15 @@ const MAX_BODY = 32 * 1024 * 1024;
 // higher ceiling than client requests.
 const MAX_EXT_BODY = 128 * 1024 * 1024;
 
-let defaultModel = process.env.AIPASS_MODEL ?? 'gemini-3.1-flash-lite';
+let defaultModel = CFG.MODEL;
 // Bind newly created conversations to a custom aipass assistant. The form field
 // name is not yet confirmed from a capture, so it is configurable; the default
 // is the most likely candidate and is harmless if the server ignores it.
-let assistantId = process.env.AIPASS_ASSISTANT_ID ?? '';
+let assistantId = CFG.ASSISTANT_ID;
 // Only the image models read this; the chat models ignore it. The web UI offers
 // 1:1, 3:4 and 4:3, and a request may override the default per call.
-let aspectRatio = process.env.AIPASS_ASPECT_RATIO ?? '1:1';
-const ASSISTANT_FIELD = process.env.AIPASS_ASSISTANT_FIELD ?? 'aiAssistantId';
+let aspectRatio = CFG.ASPECT_RATIO;
+const ASSISTANT_FIELD = CFG.ASSISTANT_FIELD;
 
 // This bridge has no authentication, so it must not be reachable from arbitrary
 // web pages — anything that can talk to it can spend the account's credits.
@@ -57,11 +81,11 @@ const ASSISTANT_FIELD = process.env.AIPASS_ASSISTANT_FIELD ?? 'aiAssistantId';
 // extension reaches the bridge with host-permission privilege, so neither needs
 // it. Set AIPASS_CORS_ORIGIN only if you deliberately want a browser page to
 // call the bridge. Admin/deployment routes stay off unless AIPASS_ADMIN=1.
-const CORS_ORIGIN = process.env.AIPASS_CORS_ORIGIN ?? '';
-const ADMIN = process.env.AIPASS_ADMIN === '1';
+const CORS_ORIGIN = CFG.CORS_ORIGIN;
+const ADMIN = CFG.ADMIN === true;
 const ALLOWED_HOSTS = new Set([
   '127.0.0.1', 'localhost', '::1', '[::1]',
-  ...(process.env.AIPASS_ALLOWED_HOSTS ?? '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean),
+  ...CFG.ALLOWED_HOSTS.split(',').map((s) => s.trim().toLowerCase()).filter(Boolean),
 ]);
 
 // A DNS-rebinding attacker points a name they control at 127.0.0.1 and has the

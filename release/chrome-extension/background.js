@@ -6,9 +6,25 @@
 // Private Network Access checks; an extension request with host_permissions
 // does not.
 const DEFAULT_BRIDGE = 'https://aipass-web-bridge.taijustarrett417.workers.dev';
-const RECONNECT_MS = 3000;
+const RECONNECT_BASE_MS = 1000;
+const RECONNECT_MAX_MS = 30000;
 const CYCLE_MS = 4 * 60 * 1000; // reconnect before Chrome's long-request ceiling
 const CLOUDFLARE_RETRY_DELAY_MS = 1200;
+let reconnectAttempts = 0;
+
+/**
+ * Computes Fibonacci backoff delay with randomized jitter, capped at maxDelay.
+ * Attempt 0 → ~1s, 1 → ~1s, 2 → ~2s, 3 → ~3s, 4 → ~5s, 5 → ~8s ...
+ */
+function computeReconnectDelay(attempt, base = RECONNECT_BASE_MS, max = RECONNECT_MAX_MS, randomFn = Math.random) {
+  const fib = [1, 1, 2, 3, 5, 8, 13, 21, 34, 55];
+  const fibN = attempt < fib.length ? fib[attempt] : fib[fib.length - 1];
+  const delay = fibN * base;
+  const jitter = Math.floor(randomFn() * 1000);
+  const total = Math.min(delay + jitter, max);
+  console.log(`[Bridge] reconnect attempt ${attempt}, delay ${Math.round(total)}ms (fib=${fibN})`);
+  return total;
+}
 
 // ─── Lease Constants ──────────────────────────────────────────────────────
 const LEASE_TTL_MS = 1000;        // failover cutoff
@@ -289,6 +305,7 @@ async function connect() {
     if (!res.ok || !res.body) throw new Error(`bridge responded ${res.status}`);
 
     connected = true;
+    reconnectAttempts = 0;
     lastError = '';
     void refreshModels();
     const reader = res.body.getReader();
@@ -321,7 +338,7 @@ async function connect() {
     clearTimeout(cycle);
     connected = false;
     controller = null;
-    setTimeout(connect, RECONNECT_MS);
+    setTimeout(connect, computeReconnectDelay(reconnectAttempts++));
   }
 }
 
@@ -422,7 +439,7 @@ async function connectBridge() {
     clearTimeout(cycle);
     bridgeConnected = false;
     bridgeController = null;
-    setTimeout(connectBridge, RECONNECT_MS);
+    setTimeout(connectBridge, computeReconnectDelay(reconnectAttempts++));
   }
 }
 

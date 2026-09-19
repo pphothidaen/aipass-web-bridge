@@ -692,7 +692,8 @@ export class ExtHub {
 
     if (p === "status" || p === "health") return this.status(url.host);
     if (p === "" && request.method === "GET") return this.status(url.host);
-    if (p === "v1/models") {
+    // Chatbox AI compatibility: also accept /models and /chat/completions (no /v1 prefix)
+    if (p === "v1/models" || p === "models") {
       const models = await this.refreshModels();
       return json({
         object: "list",
@@ -705,7 +706,7 @@ export class ExtHub {
         })),
       });
     }
-    if (p === "v1/chat/completions" && request.method === "POST") {
+    if ((p === "v1/chat/completions" || p === "chat/completions") && request.method === "POST") {
       return this.chatCompletions(request);
     }
 
