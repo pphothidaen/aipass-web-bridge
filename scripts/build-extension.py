@@ -22,6 +22,7 @@ import os
 import shutil
 import subprocess
 import sys
+import zipfile
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -63,7 +64,7 @@ def resolve_placeholder(env_var: str, project: str, config: str) -> str:
     sys.exit(1)
 
 
-def build_extension(output_dir: Path, project: str, config: str) -> None:
+def build_extension(output_dir: Path, project: str, config: str, make_zip=False) -> None:
     secrets = {env_var: resolve_placeholder(env_var, project, config)
                for env_var in PLACEHOLDER_PATTERNS.values()}
     print(f"Resolved secrets: {list(secrets.keys())}")
@@ -100,16 +101,27 @@ def build_extension(output_dir: Path, project: str, config: str) -> None:
     print(f"✅ Extension built to: {output_dir}")
     print("   Load unpacked from this directory (never from the source tree).")
 
+    if make_zip:
+        zip_path = Path(make_zip) if isinstance(make_zip, (str, Path)) and not isinstance(make_zip, bool) else output_dir.parent / f"{output_dir.name}.zip"
+        zip_path.parent.mkdir(parents=True, exist_ok=True)
+        with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+            for f in output_dir.rglob("*"):
+                if f.is_file():
+                    zf.write(f, arcname=f.relative_to(output_dir))
+        print(f"✅ Extension zipped to: {zip_path}")
+
 
 def main():
     parser = argparse.ArgumentParser(description="Build aipass extension with injected token")
     parser.add_argument("--output", "-o", type=Path, default=DEFAULT_OUT_DIR)
+    parser.add_argument("--zip", "-z", nargs="?", const=True, default=False,
+                        help="Package built extension into a ZIP file (default: <output>.zip)")
     parser.add_argument("--project", default=os.environ.get("DOPPLER_PROJECT", ""),
                         help="Doppler project (default: $DOPPLER_PROJECT)")
     parser.add_argument("--config", default=os.environ.get("DOPPLER_CONFIG", ""),
                         help="Doppler config (default: $DOPPLER_CONFIG)")
     args = parser.parse_args()
-    build_extension(args.output, args.project, args.config)
+    build_extension(args.output, args.project, args.config, make_zip=args.zip)
 
 
 if __name__ == "__main__":

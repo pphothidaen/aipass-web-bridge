@@ -27,20 +27,24 @@
      `git add packages/core` ใน repo หลักเพื่อขยับ gitlink ไม่งั้น CI เห็นของเก่า
 3. **กฎ version sync**: root `package.json` = `extension/manifest.json` (submodule) =
    `release/chrome-extension/manifest.json` — test-cf-worker assert ทั้งสามชุดเท่ากัน
-   ตอนนี้เป็น 0.6.3 (commit `a291387` ใน fork + gitlink อัปเดตใน repo หลัก)
-4. **CI/CD ผ่านครบ 4 Jobs บน GitHub Actions (Run #35417350904)**:
-   - `smoke` (Syntax & Live Smoke Gate) — ผ่าน
-   - `blueteam` (Gitleaks, Audit, Secret Hygiene) — ผ่าน
-   - `redteam` (Unit Tests, Red-team Chaos, SSRF Suite) — ผ่าน
-   - `deploy` (Wrangler Deploy & Post-deploy smoke) — สำเร็จ
-   - ผลตรวจ Production: `curl https://aipass-web-bridge.taijustarrett417.workers.dev/status` ตอบ `ok: true`, 36 models, extension CONNECTED
-5. **Git Hygiene สำหรับ Extension Build**:
-   - เพิ่ม `release/*-built*/` และ `release/*-built*.zip` ใน `.gitignore` เพื่อรับประกันตาม GUARDRAILS G1 ว่า token ที่ฉีดเข้า artifact จะไม่ถูก stage เข้า git
+   ตอนนี้เป็น 0.6.4 (commit `6c20814` ใน fork + gitlink อัปเดตใน repo หลัก)
+4. **CI/CD ผ่านครบ 4 Jobs บน GitHub Actions (Run #35420092689)**:
+   - `smoke` (Syntax & Live Smoke Gate) — ผ่าน 100%
+   - `blueteam` (Gitleaks, Audit, Secret Hygiene) — ผ่าน 100%
+   - `redteam` (Unit Tests 32/32, Red-team Chaos 10/10, SSRF Suite 5/5) — ผ่าน 100%
+   - `deploy` (Wrangler Deploy & Post-deploy smoke) — สำเร็จ 100%
+   - ผลตรวจ Production: `curl https://aipass-web-bridge.taijustarrett417.workers.dev/status` ตอบ `ok: true`, architecture: Worker + Durable Object
+5. **Governance & Architectural Guardrails**:
+   - จัดทำ [`GUARDRAILS.md`](./GUARDRAILS.md) 5 เสาหลัก และกฎถาวร [`.agent/rules/blueteam-redteam-tdd.md`](./.agent/rules/blueteam-redteam-tdd.md)
+   - อัปเดตระเบียบ Pre-Flight Work Audit ใน [`AGENTS.md`](./AGENTS.md) และ [`GEMINI.md`](./GEMINI.md)
+   - Git hygiene: เพิ่ม `release/*-built*/` และ `release/*-built*.zip` ใน `.gitignore`
+6. **Artifacts & Build Tooling**:
+   - สร้าง `release/aipass-bridge-chrome-v0.6.4.zip` สำหรับ source distribution
+   - ปรับปรุง `scripts/build-extension.py` เพิ่ม flag `--zip` (รองรับการ build + zip ในคำสั่งเดียว)
 
 ## ⏳ ค้างสำหรับ session ถัดไป
 
-1. สร้าง built extension artifact/zip — ต้องมี `BRIDGE_AUTH_TOKEN` จาก Doppler/env
-   (`python3 scripts/build-extension.py`) — source zip ล้วนใช้ไม่ได้ (placeholder)
+1. การสร้าง built extension artifact/zip ด้วย secret จริง: รัน `BRIDGE_AUTH_TOKEN="<token>" python3 scripts/build-extension.py --zip` เมื่อผู้ใช้พร้อมระบุ token
 2. ⚠️ ไฟล์ `/Users/kimlenglim/Project/HoroConsultant/.env` มี live secrets หลายตัว
    (Doppler/GitHub PAT/Azure/Cloudflare token ฯลฯ) และบรรทัด 92 value ต่อกันจน parse
    ไม่ได้ — แจ้งผู้ใช้แล้ว, ไม่เกี่ยวกับ aipass

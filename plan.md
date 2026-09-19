@@ -69,15 +69,18 @@ deploy production ผ่าน post-deploy smoke
   เปล่า ไม่มี `.gitmodules` → checkout บน GitHub ไม่มีเนื้อหา nested repo →
   redteam ENOENT · แก้: จดทะเบียน submodule ชี้ fork สาธารณะ + `submodules: recursive`
   ใน checkout ของ blueteam/redteam + sync gitlink ทุกครั้งที่ nested repo ขยับ
-- **ผลลัพธ์ CI/CD ล่าสุด (v0.6.3 — Run #35417350904)**:
-  - push commit `75d0f66` สำเร็จ
+- **ผลลัพธ์ CI/CD ล่าสุด (v0.6.4 — Run #35420092689)**:
+  - push commit `289724b` (submodule `6c20814`) สำเร็จ
   - GitHub Actions 4 jobs ผ่านครบ 100%:
-    - `smoke`: ผ่าน (syntax + live smoke)
+    - `smoke`: ผ่าน (syntax worker, background.js, popup.js, secretary.py, live probe)
     - `blueteam`: ผ่าน (gitleaks + npm audit + secret-hygiene)
-    - `redteam`: ผ่าน (unit tests + red-team-chaos + ssrf)
+    - `redteam`: ผ่าน (unit tests 32/32 + red-team-chaos 10/10 + ssrf 5/5)
     - `deploy`: รันจริงสำเร็จ Cloudflare Worker deployed + post-deploy smoke ผ่าน (`"ok": true`)
-  - ยืนยันสถานะ Worker ที่ `https://aipass-web-bridge.taijustarrett417.workers.dev/status` ตอบ `ok: true`, `extension: CONNECTED`, `models: 36`
-- **งานค้าง**: สร้าง built extension artifact เมื่อผู้ใช้ระบุ `BRIDGE_AUTH_TOKEN` (เพิ่ม guard ใน `.gitignore` แล้ว)
+  - ยืนยันสถานะ Worker ที่ `https://aipass-web-bridge.taijustarrett417.workers.dev/status` ตอบ `ok: true`, architecture: Worker + Durable Object
+- **Artifacts ที่สร้างแล้ว**:
+  - `release/aipass-bridge-chrome-v0.6.4.zip` (Source release zip)
+  - `scripts/build-extension.py` รองรับ flag `--zip` สำหรับสร้าง token-injected artifact ในขั้นตอนเดียว
+  - `.gitignore` เพิ่ม `release/*-built*/` และ `release/*-built*.zip` รองรับ token-injected build อย่างปลอดภัย
 
 ## กฎที่ต้องรักษาไว้ (สืบทอดจาก gemini-web-bridge GUARDRAILS)
 
