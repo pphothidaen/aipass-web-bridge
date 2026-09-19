@@ -1,6 +1,6 @@
 # PLAN — aipass-web-bridge: การปรับแนวคิดและ API Spec ให้ตรงกับ gemini-web-bridge
 
-อัปเดต: 2026-09-19 · เวอร์ชัน 0.6.2 (RED-4 แก้แล้ว · token placeholder เสร็จ · npm test 32/32 · nested 165/165 · red-team 10/10 · ssrf 5/5)
+อัปเดต: 2026-09-19 · เวอร์ชัน 0.6.3 (CI/CD ผ่าน gates ครบ · submodule จดทะเบียนแล้ว · push ทั้งสอง repo)
 
 > เอกสารอ้างอิงหลัก (จาก `/Users/kimlenglim/Project/gemini-web-bridge`):
 > `cloudflare-worker/src/index.js` (API spec), `.github/workflows/ci.yml`
@@ -41,19 +41,37 @@
    tracker ใช้ `sessionEpoch` (fallback `epoch` สำหรับ envelope ภายใน) — red-team 10/10
 2. ~~Sync release copy + zip~~ — **เสร็จ**: `release/chrome-extension` mirror แล้ว
    (diff ว่าง), สร้าง `release/aipass-bridge-chrome-v0.6.1.zip` (8 files, syntax/manifest ตรวจแล้ว)
-3. **ตรวจสอบ Cloudflare secrets ก่อน deploy** — `BRIDGE_SECRET` / `CLIENT_API_KEY`
-   ต้องตั้งไว้บน worker แล้ว ไม่งั้น deploy ชุดใหม่แล้ว extension/API โดน 401 ทันที
-   (ตรวจด้วย `curl -H "x-bridge-token: <token>" https://.../bridge/message` หลัง deploy)
-4. ~~Commit งาน~~ — **เสร็จ**: nested repo `3e0d040` → `f665e72` (v0.3.0 brain/orchestrator
-   batch + extension v0.6.2) แล้ว commit repo หลัก
+3. ~~ตรวจสอบ Cloudflare secrets ก่อน deploy~~ — **เสร็จ**: `wrangler secret list`
+   ยืนยัน `BRIDGE_SECRET` + `CLIENT_API_KEY` ตั้งอยู่ · deploy ด้วย wrangler ในเครื่องสำเร็จ
+   (version `8fca3a44`) · post-deploy smoke: no-token → 401 envelope ถูกต้อง (ไม่ใช่ 503)
+4. ~~Commit งาน~~ — **เสร็จ**: nested repo `f665e72` → `a291387` (v0.3.0 brain/orchestrator
+   batch + extension bumps) และ commit repo หลัก `517df21` → 0.6.3
 5. ~~ย้าย default token ไป build-time substitution~~ — **เสร็จ (v0.6.2)**:
    extension ใช้ `__BRIDGE_AUTH_TOKEN__` placeholder (background.js/popup.js/popup.html),
    เพิ่ม `scripts/build-extension.py` ฉีดค่าจาก Doppler → env (fail hard ถ้าเหลือ placeholder),
    `.gitleaks.toml` ตัด allowlist path ของ extension ออก, test กลับ assertion ให้ห้ามมี
    literal token ใน extension source — **Kiwi zero-config หมดไป**: ติดตั้งจาก
    `release/aipass-bridge-chrome-built/` (build ด้วย script) หรือกรอก token ใน popup
-6. **(ค้าง)** สร้าง built artifact/zip รุ่น 0.6.2 จริง — ต้องมี `BRIDGE_AUTH_TOKEN`
+6. **(ค้าง)** สร้าง built artifact/zip รุ่นใหม่จริง — ต้องมี `BRIDGE_AUTH_TOKEN`
    จาก Doppler หรือ env ก่อน (source zip ล้วนจะไม่ทำงานเพราะ placeholder ไม่ถูกแทน)
+
+## สถานะ CI/CD (เป้าหมาย definition of done — 2026-09-19)
+
+เป้า: push → GitHub Actions (smoke + blueteam + redteam) ผ่านครบ → deploy job
+deploy production ผ่าน post-deploy smoke
+
+- **v0.6.2 ก่อนหน้า**: push ไม่ได้เพราะ (a) nested repo remote เดิม
+  `niawjunior/aipass-bridge` ไม่มีสิทธิ์ → สลับไป fork `pphothidaen/aipass-bridge`,
+  (b) commits ใช้ email `pansakorn@hotmail.com` โดน email-privacy block →
+  rewrite เป็น `13300464+pphothidaen@users.noreply.github.com` (12 commits,
+  `git filter-branch`) + ตั้ง `git config user.email` ทั้งสอง repo สำหรับ commit ใหม่
+- **บั๊กที่ทำให้ CI ผ่านไม่ได้เลย (แก้แล้ว v0.6.3)**: `packages/core` เป็น gitlink
+  เปล่า ไม่มี `.gitmodules` → checkout บน GitHub ไม่มีเนื้อหา nested repo →
+  redteam ENOENT · แก้: จดทะเบียน submodule ชี้ fork สาธารณะ + `submodules: recursive`
+  ใน checkout ของ blueteam/redteam + sync gitlink ทุกครั้งที่ nested repo ขยับ
+- **ลำดับที่ต้องทำต่อ**: commit 0.6.3 (มี .gitmodules + ci.yml + CHANGELOG +
+  plan/handoff) → push → `gh run watch` จน 4 jobs เขียว → deploy job ต้องรันจริง
+  (secret `CLOUDFLARE_API_TOKEN` ตั้งแล้ว) → ยืนยัน post-deploy smoke ผ่าน
 
 ## กฎที่ต้องรักษาไว้ (สืบทอดจาก gemini-web-bridge GUARDRAILS)
 

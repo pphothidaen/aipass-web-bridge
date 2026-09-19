@@ -21,8 +21,8 @@ jobs:
           node --check release/chrome-extension/background.js
           node --check release/chrome-extension/popup.js
           python3 -m py_compile secretary.py
-      - name: Note — packages/core is a nested git repo (own history)
-        run: echo "packages/core/aipass-bridge has its own .git; CI validates the shipped release copy and worker."
+      - name: Note — packages/core is a git submodule (own history, public fork)
+        run: echo "packages/core is checked out via submodule; CI validates worker, release copy, and the nested test suites."
       - name: Live smoke gate (prod must answer JSON, not Hello World)
         run: |
           ST=$(curl -s --max-time 15 https://aipass-web-bridge.taijustarrett417.workers.dev/status)
@@ -36,6 +36,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          submodules: recursive
       - uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -59,6 +60,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
       - uses: actions/setup-node@v4
         with:
           node-version: 20

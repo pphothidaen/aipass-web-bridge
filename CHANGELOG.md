@@ -1,3 +1,15 @@
+## [0.6.3] - 2026-09-19
+
+### Fixed
+- **CI could never pass on GitHub**: `packages/core` was committed as a bare
+  gitlink with no `.gitmodules`, so CI checkouts had no nested-repo content and
+  the red-team job failed with ENOENT on `packages/core/...` paths. It is now a
+  proper git submodule pointing at the public fork
+  `pphothidaen/aipass-bridge`, and the `blueteam`/`redteam` jobs check it out
+  with `submodules: recursive`.
+- Rewrote unpushed nested-repo commit emails to the GitHub noreply address to
+  satisfy the account's email-privacy push policy.
+
 ## [0.6.2] - 2026-09-19
 
 ### Changed

@@ -1,49 +1,55 @@
-# HANDOFF — aipass-web-bridge v0.6.2 (extension token build-time injection checkpoint)
+# HANDOFF — aipass-web-bridge v0.6.3 (CI/CD-to-production checkpoint)
 
-อัปเดต: 2026-09-19 · Asia/Bangkok · สถานะ: **v0.6.2 เสร็จ + commit ทั้งสอง repo แล้ว · เหลือตรวจ Cloudflare secrets → deploy**
+อัปเดต: 2026-09-19 · Asia/Bangkok · สถานะ: **v0.6.3 commit+push แล้ว · รอ GitHub Actions 4 jobs เขียวและ deploy ผ่าน**
 
 > เอกสารหลักของ checkpoint นี้คือ `plan.md` (สถานะ + ลำดับงานที่เหลือ)
+> กฎทอง: จบทุก session ต้องอัปเดต `plan.md` + `handoff.md` ให้เป็นปัจจุบันเสมอ
 
-## ⚡ สิ่งที่ทำเพิ่มใน session นี้ (v0.6.2)
+## ⚡ สิ่งที่ทำเพิ่มหลัง v0.6.2 (session นี้, เป้า "CI/CD to production")
 
-1. **plan.md ข้อ 5 เสร็จ** — extension ไม่มี default token literal อีกต่อไป:
-   - `extension/background.js`, `popup.js`, `popup.html` ใช้ `__BRIDGE_AUTH_TOKEN__`
-     placeholder; ถ้าไม่ถูกแทนจะไม่ส่ง header และโดน worker 401 (fail fast)
-   - เพิ่ม `scripts/build-extension.py` — สร้าง `release/aipass-bridge-chrome-built/`
-     โดยฉีด token จาก Doppler (`--project/--config` หรือ `$DOPPLER_PROJECT/$DOPPLER_CONFIG`)
-     → env `BRIDGE_AUTH_TOKEN`; fail ถ้าเหลือ placeholder
-   - `.gitleaks.toml` ตัด allowlist path ของ extension/ ออก (เหลือเฉพาะ docs/CHANGELOG)
-   - `test/test-cf-worker.test.mjs` กลับ assertion: ห้ามมี `aipass-bridge-secret-2026`
-     ใน extension source, ต้องมี placeholder
-   - **ผลข้างเคียง**: Kiwi zero-config หมด — ต้องติดตั้งจาก built artifact หรือกรอก token เอง
-2. **เก็บงาน uncommitted ใน nested repo (`packages/core`)** → commit `f665e72` (v0.3.0):
-   brain/brain-orchestrator/autonomous-system, aipass-client, worker, longcat-worker,
-   sqlite-queue/sqlite-task-queue/task-queue, mcp-agent, start scripts, secretary workflow
-   tests (165/165 ผ่าน) — แก้ symlink `secretary.py` จากที่ชี้นอก repo (หาย) มาชี้
-   `../../secretary.py` ที่ repo root, gitignore `.aipass-models.json`
-   (runtime model cache)
-3. **ลบ duplicate ที่ root** — `bridge/`, `test/harness.mjs`, `test/red-team-chaos.test.mjs`,
-   `test/ssrf.test.mjs` เคยเป็น copy ซ้ำของ nested repo (byte-identical ยืนยันก่อนลบ);
-   canonical อยู่ที่ nested repo และ CI ชี้ path ที่นั่น
+1. **push สำเร็จหลังแก้ 2 อุปสรรค**
+   - nested repo remote เดิม `niawjunior/aipass-bridge` → 403 สำหรับ account
+     `pphothidaen` → สลับ origin ไป fork `git@github.com:pphothidaen/aipass-bridge.git`
+   - push โดน email-privacy block (commits ใช้ `pansakorn@hotmail.com`) →
+     `git filter-branch --env-filter` rewrite 12 commits เป็น
+     `13300464+pphothidaen@users.noreply.github.com` + ตั้ง `git config user.email`
+     ทั้งสอง repo (สำคัญ: commit ใหม่ต้องใช้ noreply เสมอ ไม่งั้น push โดน reject อีก)
+   - push แล้ว: fork `10c8f2e → a291387` (main), repo หลัก `cc4c24f → 517df21 → …` (master)
+2. **พบ+แก้บั๊กที่ทำให้ CI ผ่านไม่ได้เลย (v0.6.3)**
+   - อาการ: redteam job fail ENOENT `packages/core/aipass-bridge/extension/manifest.json`
+     บน runner — ในเครื่องผ่านเพราะมี nested repo อยู่จริง
+   - สาเหตุ: `packages/core` เป็น gitlink (mode 160000) โดยไม่มี `.gitmodules`
+     → GitHub checkout ได้ directory เปล่า
+   - แก้: `.gitmodules` จดทะเบียน submodule url `https://github.com/pphothidaen/aipass-bridge.git`
+     (public fork — ไม่ต้องใช้ token ตอน checkout), `git submodule absorbgitdirs`,
+     ci.yml เพิ่ม `submodules: recursive` ที่ checkout ของ blueteam + redteam
+   - **กติกาใหม่ที่ต้องจำ**: แก้อะไรใน `packages/core/**` → commit+push fork ก่อน แล้ว
+     `git add packages/core` ใน repo หลักเพื่อขยับ gitlink ไม่งั้น CI เห็นของเก่า
+3. **กฎ version sync**: root `package.json` = `extension/manifest.json` (submodule) =
+   `release/chrome-extension/manifest.json` — test-cf-worker assert ทั้งสามชุดเท่ากัน
+   ตอนนี้เป็น 0.6.3 (commit `a291387` ใน fork + gitlink อัปเดตใน repo หลัก)
 
 ## ⏳ ค้างสำหรับ session ถัดไป
 
-1. ตรวจ Cloudflare secrets (`BRIDGE_SECRET`/`CLIENT_API_KEY`) → deploy worker (G3: ต้องผ่าน gates)
-2. สร้าง built extension artifact/zip v0.6.2 — ต้องมี token จาก Doppler/env ก่อน
-3. ⚠️ ไฟล์ `/Users/kimlenglim/Project/HoroConsultant/.env` มี live secrets หลายตัว
-   (Doppler/GitHub PAT/Azure/Cloudflare token ฯลฯ) และบรรทัด 92 มี value ต่อกับ
-   `CLOUDFLARE_ACCOUNT_ID` จน parse ไม่ได้ — แจ้งผู้ใช้แล้ว, ไม่เกี่ยวกับ aipass
+1. ดูผล GitHub Actions ของ push 0.6.3: `gh run watch` — ต้อง smoke+blueteam+redteam
+   เขียวและ deploy รันจริง (secret `CLOUDFLARE_API_TOKEN` ตั้งแล้ว 2026-09-17) ·
+   ถ้า fail ให้อ่าน `--log-failed` แก้แล้ว push ใหม่จนครบ (definition of done)
+2. หลัง deploy ผ่าน: ยืนยัน production version ใหม่ + smoke `{"ok":true}` จาก
+   post-deploy step แล้วอัปเดต plan/handoff ปิดจob
+3. สร้าง built extension artifact/zip — ต้องมี `BRIDGE_AUTH_TOKEN` จาก Doppler/env
+   (`python3 scripts/build-extension.py`) — source zip ล้วนใช้ไม่ได้ (placeholder)
+4. ⚠️ ไฟล์ `/Users/kimlenglim/Project/HoroConsultant/.env` มี live secrets หลายตัว
+   (Doppler/GitHub PAT/Azure/Cloudflare token ฯลฯ) และบรรทัด 92 value ต่อกันจน parse
+   ไม่ได้ — แจ้งผู้ใช้แล้ว, ไม่เกี่ยวกับ aipass
 
-## 📜 ประวัติ v0.6.0–0.6.1 (สรุป)
+## 📜 ประวัติ v0.6.0–0.6.2 (สรุป)
 
-1. **Config loader ใหม่** `packages/core/aipass-bridge/bridge/config.mjs`
-   - Precedence: **Doppler (DOPPLER_PROJECT/DOPPLER_CONFIG) → Cloudflare
-     `wrangler.toml [vars]` → `.env` → schema defaults**
-   - บั๊กที่เคยเจอ: lookup ต้องใช้ชื่อ env var (`AIPASS_PORT`) ไม่ใช่ config key (`PORT`),
-     ค่าที่ coerce ไม่ได้ต้อง fall through ไป layer ถัดไป
-2. **Worker hardening** `cloudflare/worker.js` — ลบ fallback tokens, 401 เป็น
-   OpenAI-style envelope, ไม่มี secrets → `503 secrets_unconfigured`
-3. **CI/CD** `blueteam` (gitleaks + npm audit + token-literal grep) / `redteam`
-   (npm test + chaos + ssrf) / deploy needs ทั้งสาม, รันบน PR ด้วย
-4. **RED-4 epoch-replay** แก้แล้ว (v0.6.1): fence ใช้ `sessionEpoch` — red-team 10/10
+1. **v0.6.0** Config loader (Doppler → CF vars → .env → defaults) + worker hardening
+   (ลบ fallback tokens, 401 OpenAI envelope, 503 secrets_unconfigured) + CI
+   blueteam/redteam/deploy gates + docs (API-SPEC, CONFIGURATION)
+2. **v0.6.1** RED-4 epoch-replay: fence ใช้ `sessionEpoch` — red-team 10/10
+3. **v0.6.2** Extension token เป็น `__BRIDGE_AUTH_TOKEN__` placeholder +
+   `scripts/build-extension.py` + gitleaks ตัด extension allowlist — Kiwi zero-config หมด
+   (ติดตั้งจาก built artifact หรือกรอก token เอง); deploy wrangler ในเครื่องสำเร็จ
+   (version `8fca3a44`), secrets ครบ, smoke 401 ถูกต้อง
 
