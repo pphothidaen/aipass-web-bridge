@@ -240,21 +240,21 @@ AIPASS Web Bridge provides a suite of remote MCP tools via `POST /mcp` conformin
 │          └────────────────────────┼────────────────────────┘                           │
 │                                   ▼                                                    │
 │   ┌────────────────────────────────────────────────────────────────────────────────┐   │
-│   │                    ExtHub (Stateful Durable Object Singleton)                   │   │
-│   │   • Global Singleton (`idFromName("singleton")`)                                │   │
-│   │   • FIFO Job Queue (Max 10 Waiters, 120s chat / 30s other timeouts)             │   │
-│   │   • Real SSE Chunk Streaming (`/ext/chunk` → `chat.completion.chunk`)           │   │
-│   │   • Dynamic Model Catalog & Revision Registry                                   │   │
-│   │   • Job Dispatch Bus + Remote Reload Channels (/ext/reload, /ext/reload-tab)    │   │
+│   │                    ExtHub (Stateful Durable Object Singleton)                  │   │
+│   │   • Global Singleton (`idFromName("singleton")`)                               │   │
+│   │   • FIFO Job Queue (Max 10 Waiters, 120s chat / 30s other timeouts)            │   │
+│   │   • Real SSE Chunk Streaming (`/ext/chunk` → `chat.completion.chunk`)          │   │
+│   │   • Dynamic Model Catalog & Revision Registry                                  │   │
+│   │   • Job Dispatch Bus + Remote Reload Channels (/ext/reload, /ext/reload-tab)   │   │
 │   └───────────────────────────────┬────────────────────────────────────────────────┘   │
-│                                   │ SSE Job Push (GET /ext/events, auth: BRIDGE_SECRET) │
+│                                   │ SSE Job Push (GET /ext/events, auth: BRIDGE_SECRET)│
 │                                   ▼                                                    │
 │   ┌────────────────────────────────────────────────────────────────────────────────┐   │
-│   │                 Chrome Extension (Manifest V3)                                   │   │
-│   │   • background.js: SSE job consumer, result POSTer (/ext/chunk|done|error|tab)  │   │
-│   │   • offscreen.js + page.js: AIPASS page orchestration                           │   │
-│   │   • content.js: tab-level relay                                                 │   │
-│   │   • popup: connection status & bridge URL configuration                         │   │
+│   │                 Chrome Extension (Manifest V3)                                 │   │
+│   │   • background.js: SSE job consumer, result POSTer (/ext/chunk|done|error|tab) │   │
+│   │   • offscreen.js + page.js: AIPASS page orchestration                          │   │
+│   │   • content.js: tab-level relay                                                │   │
+│   │   • popup: connection status & bridge URL configuration                        │   │
 │   └───────────────────────────────┬────────────────────────────────────────────────┘   │
 └───────────────────────────────────┼────────────────────────────────────────────────────┘
                                     │ chrome.tabs / offscreen document
@@ -268,66 +268,15 @@ AIPASS Web Bridge provides a suite of remote MCP tools via `POST /mcp` conformin
 
 ---
 
-## 💼 For HR & Technical Recruiters | สำหรับผู้สรรหาบุคลากร | 招聘与合作
-
 <div align="center">
 
 ### 🤝 Let's Connect & Build High-Impact AI Systems Together!
 
 [![LinkedIn Profile](https://img.shields.io/badge/LinkedIn-Pansakorn%20Phothidaen-0A66C2?style=for-the-badge&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/pansakorn/)
 [![GitHub Profile](https://img.shields.io/badge/GitHub-pphothidaen-181717?style=for-the-badge&logo=github&logoColor=white)](https://github.com/pphothidaen)
+[![Hugging Face Profile](https://img.shields.io/badge/HuggingFace-pphothidaen-181717?style=for-the-badge&logo=huggingface&logoColor=white)](https://huggingface.co/pphothidaen)
 
 </div>
-
-### 🌟 English: Invitation for Technical Recruiters, Engineering Leaders & Founders
-
-Are you seeking a **Senior AI Systems Engineer**, **Cloudflare Edge Architect**, or **Lead Full-Stack AI Engineer** with proven expertise in building high-reliability distributed systems from 0 to 1?
-
-**Core Technical Proficiencies:**
-- **Edge AI & Distributed Infrastructure:** Cloudflare Workers, Durable Objects, SSE/WebSocket transports, State Synchronization, Rate Limiting & Queue Orchestration.
-- **AI Agent Protocols & Ecosystem:** Model Context Protocol (MCP), OpenAI API compatibility, Multi-Model Gateway design (chat/image/video/music), Multi-Agent Coordination.
-- **Browser Runtime & Security Engineering:** Chromium Manifest V3, Zero-Leak Security Architecture, build-time secret injection, SSRF isolation.
-- **System Quality & Resilience:** Strict Fail-Closed design, Blue Team / Red Team adversarial CI gates, TDD governance, Zero-downtime deployment.
-
-> **Open to Opportunities:**
-> - Senior / Lead AI Systems Engineer
-> - Distributed Systems & Cloudflare Edge Architect
-> - Staff / Senior Full-Stack Engineer (AI Tooling & Infrastructure)
-> - Technical Advisory, Consulting, and High-Impact Collaborations
->
-> 📬 **Feel free to connect or send role invitations directly via LinkedIn:**
-> **👉 [https://www.linkedin.com/in/pansakorn/](https://www.linkedin.com/in/pansakorn/)**
-
----
-
-### 🌟 ภาษาไทย: สำหรับผู้สรรหาบุคลากรทางเทคนิคและทีมวิศวกรรม (HR & Tech Recruiters)
-
-หากคุณกำลังมองหา **Senior Software Engineer / AI Systems Architect** ที่มีประสบการณ์ลึกซึ้งในการออกแบบและพัฒนาโครงสร้างพื้นฐาน AI ประสิทธิภาพสูงบน Edge, ระบบ Distributed Systems ด้วย **Cloudflare Durable Objects** และการเชื่อมต่อ **AI Agentic Tooling / MCP Protocol** เข้าสู่ระบบโปรดักชันจริง:
-
-**ความเชี่ยวชาญหลัก:**
-- สถาปัตยกรรม Edge Computing (Cloudflare Workers, Durable Objects, SSE Transport แบบ Stateful)
-- ออกแบบและสร้างระบบเชื่อมต่อ AI Agent (Model Context Protocol, OpenAI Compatibility, Streaming SSE)
-- ความมั่นคงปลอดภัยเชิงรุก (Zero-Leak Architecture, Red-Team Adversarial Testing, Strict Fail-Closed)
-- Full-Lifecycle Engineering ตั้งแต่การออกแบบสถาปัตยกรรม เขียนโค้ด ทดสอบอัตโนมัติ 100% จนถึง CI/CD Deployment
-
-> **เปิดรับโอกาสทางอาชีพและการร่วมงาน:**
-> - ตำแหน่ง Senior / Lead / Staff AI Engineer หรือ Distributed Systems Architect
-> - การให้คำปึกษาทางเทคนิค (Technical Advisory / Consulting) ในงาน AI Infrastructure
->
-> 📬 **ยินดีเชื่อมต่อและพูดคุยข้อเสนอการร่วมงานผ่าน LinkedIn ได้โดยตรง:**
-> **👉 [https://www.linkedin.com/in/pansakorn/](https://www.linkedin.com/in/pansakorn/)**
-
----
-
-### 🌟 简体中文: 技术招聘顾问与团队负责人欢迎交流
-
-如果您正在寻找具备 **Edge AI 架构**、**分布式系统（Cloudflare Durable Objects）** 以及 **AI Agent 工具链（MCP 协议 / OpenAI 兼容网关）** 实战落地经验的技术人才，欢迎随时联系与交流：
-
-- **核心领域：** Cloudflare Workers / Durable Objects 分布式计算、AI 网关架构、浏览器扩展核心运行时、安全防御架构与红蓝对抗验证。
-- **合作方向：** Senior / Lead AI 研发工程师、Edge 架构师职位机会、技术顾问咨询或重要开源/商业项目合作。
-
-> 📬 **欢迎在 LinkedIn 上建立连接并探讨合作机会：**
-> **👉 [https://www.linkedin.com/in/pansakorn/](https://www.linkedin.com/in/pansakorn/)**
 
 ---
 
