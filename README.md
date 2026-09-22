@@ -10,7 +10,7 @@
 [![CI Gates](https://img.shields.io/badge/CI-smoke%20·%20blueteam%20·%20redteam%20·%20deploy-brightgreen.svg)](.github/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-[English](#-english) | [ภาษาไทย](#-ภาษาไทย) | [简体中文](#-简体中文) | [💼 Career & Recruitment](#-for-hr--technical-recruiters--สำหรับผู้สรรหาบุคลากร--招聘与合作)
+[English](#-english) | [ภาษาไทย](#-ภาษาไทย) | [简体中文](#-简体中文)
 
 </div>
 
