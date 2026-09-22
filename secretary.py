@@ -255,6 +255,8 @@ def should_consult(request: str) -> bool:
         "update file", "update a file", "แก้ไขไฟล์", "แก้ไขไฟล์",
         "edit file", "edit a file",
         "modify file", "modify a file",
+        "read file", "read a file", "read the file", "view file",
+        "อ่านไฟล์", "ดูไฟล์",
         "สร้างไฟล์", "สร้างไฟล์",  # Thai CREATE
     ]
     request_lower = request.lower()
@@ -1178,6 +1180,8 @@ def verify_execution_result(
     ALWAYS called after execution.
     """
     cwd = cwd or os.getcwd()
+    if not original_request and plan:
+        original_request = plan.get("goal") or plan.get("original_request")
 
     verification = {
         "verified": True,
@@ -1248,11 +1252,15 @@ def verify_execution_result(
         # For file operations, verify actual file state
         if step.get("is_file_operation") or step.get("execution_method") == "bridge_agent":
             action_for_path = step["action"] if step["action"] else None
-            # First try to extract from command_hint (which was updated with new paths)
-            command_hint = step.get("command", "") or step_result.get("command", "")
             file_path = None
-            if command_hint:
-                file_path = _extract_path_from_string(command_hint, cwd)
+            if original_request:
+                file_path = _extract_file_path_from_action(action_for_path or "", cwd, original_request)
+
+            # First try to extract from command_hint (which was updated with new paths)
+            if not file_path:
+                command_hint = step.get("command", "") or step_result.get("command", "")
+                if command_hint:
+                    file_path = _extract_path_from_string(command_hint, cwd)
             
             # If still no path, try the action string
             if not file_path and action_for_path:
@@ -1272,11 +1280,12 @@ def verify_execution_result(
                 pass
 
             if file_path:
-                # Determine action type: prefer effective_action, fall back to original_request
-                # Also check parameters.task from the plan step (for bridge agent actions)
-                action_for_type = effective_action.lower() if effective_action else ""
-                if not action_for_type and original_request:
+                # Determine action type: prefer original_request or effective_action
+                action_for_type = ""
+                if original_request:
                     action_for_type = original_request.lower()
+                if not action_for_type and effective_action:
+                    action_for_type = effective_action.lower()
                 # Check parameters.task for bridge agent actions
                 if not action_for_type and step.get("parameters", {}).get("task"):
                     action_for_type = step["parameters"]["task"].lower()
@@ -1295,6 +1304,30 @@ def verify_execution_result(
                             "step": step["step_num"],
                             "expected": "file exists",
                             "actual": "file not found",
+                            "path": file_path
+                        })
+
+                elif _is_read_action(action_for_type):
+                    if _file_exists(file_path):
+                        try:
+                            content = _read_file(file_path)
+                            detail["notes"].append(f"File {file_path} exists and is readable (READ, length: {len(content)})")
+                            detail["content"] = content
+                        except Exception as e:
+                            detail["verified"] = False
+                            detail["notes"].append(f"Error reading file {file_path}: {e}")
+                            verification["failures"].append({
+                                "type": "file_read_error",
+                                "step": step["step_num"],
+                                "path": file_path,
+                                "message": str(e)
+                            })
+                    else:
+                        detail["verified"] = False
+                        detail["notes"].append(f"File {file_path} NOT found for READ")
+                        verification["failures"].append({
+                            "type": "file_not_found_for_read",
+                            "step": step["step_num"],
                             "path": file_path
                         })
 
@@ -1355,6 +1388,14 @@ def _is_create_action(action_lower: str) -> bool:
     return any(kw in action_lower for kw in keywords)
 
 
+def _is_read_action(action_lower: str) -> bool:
+    """Check if action implies file reading."""
+    keywords = ["อ่าน", "อ่านไฟล์", "ดูไฟล์", "view file", "inspect", "cat"]
+    if any(kw in action_lower for kw in keywords):
+        return True
+    return bool(re.search(r'\b(read|view|cat)\b', action_lower))
+
+
 def _is_update_action(action_lower: str) -> bool:
     """Check if action implies file modification."""
     keywords = ["แก้ไข", "update", "edit", "modify", "เปลี่ยน", "update", "แก้"]
@@ -1380,20 +1421,15 @@ def _read_file(path: str, encoding: str = "utf-8") -> str:
 def _extract_file_path_from_action(action: str, cwd: str, original_request: Optional[str] = None) -> Optional[str]:
     """Extract file path from action string (heuristic).
     
-    If original_request is provided and action path doesn't match, try extracting from original_request.
+    If original_request is provided, prioritize extracting from original_request
+    because skill reuse keeps old skill action paths. Fall back to action string.
     """
-    # First try the action string
-    path = _extract_path_from_string(action, cwd)
-    if path:
-        return path
-    
-    # If original_request provided and we didn't find path in action, try original request
-    if original_request:
+    if original_request and original_request.strip():
         path = _extract_path_from_string(original_request, cwd)
         if path:
             return path
-    
-    return None
+
+    return _extract_path_from_string(action, cwd)
 
 
 def _extract_path_from_string(text: str, cwd: str) -> Optional[str]:
@@ -1487,6 +1523,8 @@ def _update_plan_paths(plan: Dict[str, Any], new_cwd: str, original_request: str
                     # Replace the old path with the new path
                     command_hint = command_hint.replace(old_file_path, new_file_path)
                     step["command_hint"] = command_hint
+                    if step.get("action"):
+                        step["action"] = step["action"].replace(old_file_path, new_file_path)
     
     return plan
 
@@ -1510,6 +1548,8 @@ def load_skill(request: str) -> Optional[Dict[str, Any]]:
         text = text.lower()
         if any(kw in text for kw in ["สร้าง", "create", "ใหม่", "make", "write"]):
             return "create"
+        if any(kw in text for kw in ["อ่าน", "read", "view", "inspect", "cat"]):
+            return "read"
         if any(kw in text for kw in ["แก้ไข", "update", "edit", "modify", "เปลี่ยน", "แก้"]):
             return "update"
         if any(kw in text for kw in ["ลบ", "delete", "remove", "ลบออก"]):
@@ -1529,6 +1569,7 @@ def load_skill(request: str) -> Optional[Dict[str, Any]]:
         "ไฟล์", "file", "พร้อม", "ข้อความ", "เนื้อหา", "content",
         "create", "สร้าง", "แก้ไข", "update", "edit", "modify",
         "delete", "ลบ", "remove", "ลบออก", "โดย", "เป็น", "เปลี่ยน",
+        "read", "อ่าน", "ดู", "view", "cat",
         "และ", "ด้วย", "ให้", "แก้", "เพิ่ม", "ใหม่", "make", "write"
     }
 
@@ -2128,6 +2169,12 @@ def run_secrets_workflow(user_request: str, cwd: str = None) -> Dict[str, Any]:
                 content = content_match.group(1).strip() if content_match else "Created by Secretary"
                 is_simple_file_op = True
         
+        # Check if it's a READ file operation
+        elif "อ่านไฟล์" in user_request or "read file" in user_request.lower() or "read the file" in user_request.lower() or "view file" in user_request.lower():
+            file_path = _extract_file_path_from_action(user_request, cwd)
+            if file_path:
+                is_simple_file_op = True
+
         # Check if it's an UPDATE file operation
         elif "แก้ไขไฟล์" in user_request or "update file" in user_request.lower() or "edit file" in user_request.lower() or "modify file" in user_request.lower():
             file_path = _extract_file_path_from_action(user_request, cwd)
@@ -2151,6 +2198,9 @@ def run_secrets_workflow(user_request: str, cwd: str = None) -> Dict[str, Any]:
             if "ลบไฟล์" in user_request or "delete file" in user_request.lower():
                 command_hint = f"rm -f {file_path!r}"
                 expected = "File deleted"
+            elif "อ่านไฟล์" in user_request or "read file" in user_request.lower() or "read the file" in user_request.lower() or "view file" in user_request.lower():
+                command_hint = f"cat {file_path!r}"
+                expected = "File content read"
             elif "แก้ไขไฟล์" in user_request or "update file" in user_request.lower() or "edit file" in user_request.lower() or "modify file" in user_request.lower():
                 command_hint = f"mkdir -p {Path(file_path).parent} && echo {content!r} > {file_path!r}"
                 expected = "File updated"
