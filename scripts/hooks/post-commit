@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+# post-commit hook — Push commit info to Jira automatically
+# Installed to: .git/hooks/post-commit
+# Purpose: Event-driven Jira sync (no Hermes cron needed)
+
+set -euo pipefail
+
+# Load Jira credentials from HoroConsultant .env.
+# The .env file is NOT shell-safe to source (cron expressions and JSON values
+# break under `set -e`), so extract only the JIRA_* keys instead.
+ENV_FILE="${HORO_CONSULTANT_ENV:-/Users/kimlenglim/Project/HoroConsultant/.env}"
+if [ -f "$ENV_FILE" ]; then
+  eval "$(grep -E '^JIRA_(BASE_URL|EMAIL|API_TOKEN)=' "$ENV_FILE" | sed 's/^/export /')"
+fi
+
+# Skip if Jira not configured
+if [ -z "${JIRA_BASE_URL:-}" ] || [ -z "${JIRA_EMAIL:-}" ] || [ -z "${JIRA_API_TOKEN:-}" ]; then
+  exit 0
+fi
+
+COMMIT_MSG=$(git log -1 --pretty=%B)
+COMMIT_HASH=$(git rev-parse --short HEAD)
+COMMIT_AUTHOR=$(git log -1 --pretty=%an)
+COMMIT_DATE=$(git log -1 --pretty=%ci)
+BRANCH=$(git rev-parse --abbrev-ref HEAD)
+
+# Extract Jira ticket ID from commit message or branch name
+TICKET_ID=$(echo "$COMMIT_MSG" | grep -oE 'KAN-[0-9]+' | head -1)
+if [ -z "$TICKET_ID" ]; then
+  TICKET_ID=$(echo "$BRANCH" | grep -oE 'KAN-[0-9]+' | head -1)
+fi
+
+if [ -z "$TICKET_ID" ]; then
+  exit 0
+fi
+
+# Get changed files
+FILES_CHANGED=$(git diff-tree --no-commit-id --name-only -r HEAD | tr '\n' ', ' | sed 's/,$//')
+
+# Build comment
+COMMENT="📝 Commit by $COMMIT_AUTHOR on $BRANCH
+
+*Hash:* $COMMIT_HASH
+*Message:* $COMMIT_MSG
+*Files:* $FILES_CHANGED
+*Date:* $COMMIT_DATE"
+
+# Post comment to Jira
+curl -s -X POST \
+  -H "Authorization: Basic $(echo -n "$JIRA_EMAIL:$JIRA_API_TOKEN" | base64)" \
+  -H "Content-Type: application/json" \
+  "$JIRA_BASE_URL/rest/api/3/issue/$TICKET_ID/comment" \
+  -d "$(jq -n --arg body "$COMMENT" '{
+    "body": {
+      "type": "doc",
+      "version": 1,
+      "content": [{
+        "type": "paragraph",
+        "content": [{"type": "text", "text": $body}]
+      }]
+    }
+  }')" > /dev/null 2>&1 || true
+
+exit 0

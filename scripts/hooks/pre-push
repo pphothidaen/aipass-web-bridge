@@ -1,37 +1,189 @@
 #!/usr/bin/env bash
-# Pre-push hook: Run full test suite before pushing to remote
+# Pre-push hook: Run full test suite + Jira ticket validation before push
 set -euo pipefail
 
-echo "=== Pre-push Hook: Running Test Suite ==="
+ENV_FILE="${HORO_CONSULTANT_ENV:-/Users/kimlenglim/Project/HoroConsultant/.env}"
 
-# 1. Check git status is clean (no uncommitted changes)
+# Load Jira credentials safely
+load_jira_env() {
+  if [ -f "$ENV_FILE" ]; then
+    eval "$(grep -E '^JIRA_(BASE_URL|EMAIL|API_TOKEN)=' "$ENV_FILE" | sed 's/^/export /')"
+  fi
+}
+
+# Validate a Jira ticket exists and is active
+validate_ticket() {
+  local ticket_id="$1"
+  
+  if [ -z "${JIRA_BASE_URL:-}" ] || [ -z "${JIRA_EMAIL:-}" ] || [ -z "${JIRA_API_TOKEN:-}" ]; then
+    return 0
+  fi
+
+  local response
+  response=$(curl -s -w "\n%{http_code}" \
+    -H "Authorization: Basic $(echo -n "$JIRA_EMAIL:$JIRA_API_TOKEN" | base64)" \
+    -H "Accept: application/json" \
+    "$JIRA_BASE_URL/rest/api/3/issue/$ticket_id" 2>/dev/null || echo -e "\n000")
+
+  local http_code
+  http_code=$(echo "$response" | tail -1)
+  local body
+  body=$(echo "$response" | sed '$d')
+
+  if [ "$http_code" = "404" ]; then
+    echo "❌ PUSH REJECTED: Jira ticket $ticket_id does not exist"
+    return 1
+  elif [ "$http_code" != "200" ]; then
+    return 0
+  fi
+
+  local status
+  status=$(echo "$body" | python3 -c "
+import sys, json
+try:
+    data = json.load(sys.stdin)
+    print(data.get('fields', {}).get('status', {}).get('name', 'Unknown'))
+except:
+    print('Unknown')
+" 2>/dev/null || echo "Unknown")
+
+  case "$status" in
+    Done|Closed|Archived|Cancelled|Resolved)
+      echo "❌ PUSH REJECTED: Jira ticket $ticket_id is '$status'"
+      echo "   Cannot push commits to a $status ticket."
+      return 1
+      ;;
+  esac
+
+  return 0
+}
+
+echo "=== Pre-push Hook: Validation Suite ==="
+
+# 1. Check git status
 if [ -n "$(git status --porcelain 2>/dev/null)" ]; then
-  echo "⚠️  WARNING: You have uncommitted changes. Commit before pushing."
+  echo "⚠️  WARNING: You have uncommitted changes."
   echo "   Continuing with push anyway..."
 fi
 
-# 2. Run npm test (full suite)
+# 2. Run npm test
 echo "Running npm test..."
 if npm test 2>&1; then
   echo "✅ All tests passed"
 else
   echo "❌ PUSH REJECTED: Test suite failed. Fix all tests before pushing."
-  echo "   Run 'npm test' locally to see failures."
   exit 1
 fi
 
 # 3. Verify no untracked .env or secret files
 if git ls-files --others --exclude-standard | grep -qE '(\.env$|secret|token)'; then
   echo "❌ PUSH REJECTED: Untracked secret files detected"
-  echo "   Add them to .gitignore or remove them"
   exit 1
 fi
 
-# 4. Check branch protection (warn if pushing directly to master/main)
+# 4. Check branch protection
 CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
 if [ "$CURRENT_BRANCH" = "master" ] || [ "$CURRENT_BRANCH" = "main" ]; then
   echo "⚠️  WARNING: Pushing directly to $CURRENT_BRANCH branch"
   echo "   Ensure all changes are reviewed and CI/CD will validate"
+fi
+
+# ================================================================
+# 5. Jira ticket validation on all commits being pushed
+# ================================================================
+load_jira_env
+
+if [ -n "${JIRA_BASE_URL:-}" ] && [ -n "${JIRA_EMAIL:-}" ] && [ -n "${JIRA_API_TOKEN:-}" ]; then
+  echo "=== Jira Ticket Validation ==="
+
+  while read local_ref local_sha remote_ref remote_sha; do
+    if [ "$local_sha" = "0000000000000000000000000000000000000000" ]; then
+      continue  # Branch deletion
+    fi
+
+    if [ "$remote_sha" = "0000000000000000000000000000000000000000" ]; then
+      RANGE="$local_sha"
+    else
+      RANGE="$remote_sha..$local_sha"
+    fi
+
+    for commit in $(git rev-list "$RANGE" 2>/dev/null || echo ""); do
+      [ -z "$commit" ] && continue
+
+      COMMIT_MSG=$(git log -1 --pretty=%B "$commit")
+      TICKET_ID=$(echo "$COMMIT_MSG" | grep -oE 'KAN-[0-9]+' | head -1)
+      [ -z "$TICKET_ID" ] && continue
+
+      if ! validate_ticket "$TICKET_ID"; then
+        echo "   Commit: $commit"
+        echo "   Message: $COMMIT_MSG"
+        exit 1
+      fi
+
+      echo "  ✅ $TICKET_ID valid"
+    done
+  done
+
+  echo "✅ All Jira tickets validated"
+fi
+
+# ================================================================
+# 6. ATOMIC EXECUTION GATE — ≤3 files, ≤1 subsystem
+# ================================================================
+if [ -n "${JIRA_BASE_URL:-}" ]; then
+  echo "=== Atomic Execution Gate ==="
+
+  while read local_ref local_sha remote_ref remote_sha; do
+    if [ "$local_sha" = "0000000000000000000000000000000000000000" ]; then
+      continue
+    fi
+
+    if [ "$remote_sha" = "0000000000000000000000000000000000000000" ]; then
+      RANGE="$local_sha"
+    else
+      RANGE="$remote_sha..$local_sha"
+    fi
+
+    for commit in $(git rev-list "$RANGE" 2>/dev/null || echo ""); do
+      [ -z "$commit" ] && continue
+
+      COMMIT_MSG=$(git log -1 --pretty=%B "$commit")
+      TICKET_ID=$(echo "$COMMIT_MSG" | grep -oE 'KAN-[0-9]+' | head -1)
+      [ -z "$TICKET_ID" ] && continue
+
+      FILES=$(git diff-tree --no-commit-id --name-only -r "$commit" | tr '\n' ' ')
+      NUM_FILES=$(echo "$FILES" | wc -w | tr -d ' ')
+
+      if [ "$NUM_FILES" -gt 3 ]; then
+        echo "❌ ATOMIC VIOLATION: $TICKET_ID — $NUM_FILES files in one commit (max 3)"
+        echo "   Files: $FILES"
+        exit 1
+      fi
+
+      SUBSYSTEMS=""
+      for f in $FILES; do
+        case "$f" in
+          cloudflare/*) S="cloudflare" ;;
+          packages/vscode-extension/*) S="vscode" ;;
+          packages/core/*) S="core" ;;
+          scripts/*) S="scripts" ;;
+          *.md|docs/*) S="docs" ;;
+          *) S="other" ;;
+        esac
+        echo "$SUBSYSTEMS" | grep -qw "$S" || SUBSYSTEMS="$SUBSYSTEMS $S"
+      done
+      NUM_SUBSYS=$(echo "$SUBSYSTEMS" | wc -w | tr -d ' ')
+
+      if [ "$NUM_SUBSYS" -gt 1 ]; then
+        echo "❌ CROSS-SYSTEM: $TICKET_ID touches $NUM_SUBSYS subsystems: $SUBSYSTEMS"
+        exit 1
+      fi
+
+      echo "  ✅ $TICKET_ID: $NUM_FILES file(s), subsystem:$SUBSYSTEMS"
+    done
+  done
+
+  echo "✅ Atomic Execution Gate passed"
 fi
 
 echo "✅ Pre-push checks passed — proceeding with push"

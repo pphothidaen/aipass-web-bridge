@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Commit-msg hook: Enforce Jira issue key + format in commit message
+# Commit-msg hook: Enforce Jira issue key + 5W1H completeness in commit message
 set -euo pipefail
 
 COMMIT_MSG_FILE="${1:-}"
@@ -17,21 +17,147 @@ if echo "$COMMIT_MSG" | grep -qE "^(Merge|fixup|squash)! "; then
   exit 0
 fi
 
-# 1. Check Jira issue key format (e.g., HERMES-123, AIPASS-456)
+# Skip if message already provided (e.g., git commit -m "...")
+if echo "$COMMIT_MSG" | grep -qE "^(Merge branch|Revert|cherry-pick)"; then
+  exit 0
+fi
+
+# ================================================================
+# 1. Check Jira issue key format (e.g., KAN-123)
+# ================================================================
 JIRA_KEY_REGEX="[A-Z]+-[0-9]+"
 if ! echo "$COMMIT_MSG" | grep -qE "$JIRA_KEY_REGEX"; then
   echo "❌ COMMIT REJECTED: Commit message must include a Jira issue key"
-  echo "   Format: 'HERMES-123: description of changes'"
+  echo "   Format: 'KAN-KEY: description of changes'"
   echo "   Current: $COMMIT_MSG"
   exit 1
 fi
 
-# 2. Check format: KEY: description
+# ================================================================
+# 2. Check format: KEY: description (with Jira ticket existence)
+# ================================================================
 if ! echo "$COMMIT_MSG" | grep -qE "^[A-Z]+-[0-9]+: .{5,}"; then
   echo "❌ COMMIT REJECTED: Use format 'JIRA-KEY: description (min 5 chars)'"
   echo "   Current: $COMMIT_MSG"
   exit 1
 fi
 
-echo "✅ Commit message validated (Jira key present)"
+# ================================================================
+# 3. Enhanced 5W1H validation (if template markers present)
+# ================================================================
+FIVE_W1H_SECTION=$(echo "$COMMIT_MSG" | sed -n '/^## 5W1H/,/^## /p' | head -30)
+
+if echo "$COMMIT_MSG" | grep -qE "^## 5W1H"; then
+  # Must have all 6 fields
+  REQUIRED_FIELDS=("- Who:" "- What:" "- When:" "- Where:" "- Why:" "- How:")
+  MISSING_FIELDS=()
+  EMPTY_FIELDS=()
+
+  for field in "${REQUIRED_FIELDS[@]}"; do
+    # Check field exists
+    if ! echo "$FIVE_W1H_SECTION" | grep -qE "$field"; then
+      MISSING_FIELDS+=("$field")
+    fi
+    # Check field is not empty (line ends with just the field name or has only whitespace)
+    if echo "$FIVE_W1H_SECTION" | grep -qE "${field}[[:space:]]*$"; then
+      EMPTY_FIELDS+=("$field")
+    fi
+  done
+
+  # Report missing fields
+  if [ ${#MISSING_FIELDS[@]} -gt 0 ]; then
+    echo "❌ COMMIT REJECTED: 5W1H incomplete — missing fields:"
+    for f in "${MISSING_FIELDS[@]}"; do
+      echo "   $f"
+    done
+    echo "   Fill in all 6 fields: Who, What, When, Where, Why, How"
+    exit 1
+  fi
+
+  # Report empty fields
+  if [ ${#EMPTY_FIELDS[@]} -gt 0 ]; then
+    echo "❌ COMMIT REJECTED: 5W1H fields empty — provide content for:"
+    for f in "${EMPTY_FIELDS[@]}"; do
+      echo "   $f"
+    done
+    echo "   Example: '- What: Refactored auth middleware to use JWT'"
+    exit 1
+  fi
+
+  # Validate field content quality (min 3 chars after colon)
+  for field in "${REQUIRED_FIELDS[@]}"; do
+    CONTENT=$(echo "$FIVE_W1H_SECTION" | grep -E "$field" | sed "s/.*$field[[:space:]]*//")
+    if [ ${#CONTENT} -lt 3 ]; then
+      echo "❌ COMMIT REJECTED: 5W1H field '$field' too short (min 3 chars)"
+      echo "   Current: '$field$CONTENT'"
+      echo "   Provide a meaningful description."
+      exit 1
+    fi
+  done
+
+  echo "✅ 5W1H validation passed (all 6 fields complete)"
+fi
+
+# ================================================================
+# 4. Check Files section (if present)
+# ================================================================
+if echo "$COMMIT_MSG" | grep -qE "^## Files"; then
+  FILES_SECTION=$(echo "$COMMIT_MSG" | sed -n '/^## Files/,$p' | tail -n +2)
+  if [ -z "$(echo "$FILES_SECTION" | tr -d '[:space:]')" ]; then
+    echo "⚠️  WARNING: Files section is empty — list changed files"
+  fi
+fi
+
+# ================================================================
+# 5. Validate Jira ticket exists and is not Done/Closed
+# ================================================================
+ENV_FILE="${HORO_CONSULTANT_ENV:-/Users/kimlenglim/Project/HoroConsultant/.env}"
+if [ -f "$ENV_FILE" ]; then
+  eval "$(grep -E '^JIRA_(BASE_URL|EMAIL|API_TOKEN)=' "$ENV_FILE" | sed 's/^/export /')"
+
+  if [ -n "${JIRA_BASE_URL:-}" ] && [ -n "${JIRA_EMAIL:-}" ] && [ -n "${JIRA_API_TOKEN:-}" ]; then
+    # Extract ticket ID from commit message
+    TICKET_ID=$(echo "$COMMIT_MSG" | grep -oE 'KAN-[0-9]+' | head -1)
+
+    if [ -n "$TICKET_ID" ]; then
+      response=$(curl -s -w "\n%{http_code}" \
+        -H "Authorization: Basic $(echo -n "$JIRA_EMAIL:$JIRA_API_TOKEN" | base64)" \
+        -H "Accept: application/json" \
+        "$JIRA_BASE_URL/rest/api/3/issue/$TICKET_ID" 2>/dev/null || echo -e "\n000")
+
+      http_code=$(echo "$response" | tail -1)
+      body=$(echo "$response" | sed '$d')
+
+      if [ "$http_code" = "404" ]; then
+        echo "❌ COMMIT REJECTED: Jira ticket $TICKET_ID does not exist"
+        echo "   Create the ticket first: $JIRA_BASE_URL/secure/CreateIssue.jspa"
+        exit 1
+      elif [ "$http_code" = "200" ]; then
+        status=$(echo "$body" | python3 -c "
+import sys, json
+try:
+    data = json.load(sys.stdin)
+    fields = data.get('fields', {})
+    status = fields.get('status', {})
+    print(status.get('name', 'Unknown'))
+except:
+    print('Unknown')
+" 2>/dev/null || echo "Unknown")
+
+        case "$status" in
+          Done|Closed|Archived|Cancelled|Resolved)
+            echo "❌ COMMIT REJECTED: Jira ticket $TICKET_ID is '$status'"
+            echo "   Reopen the ticket or create a new one."
+            exit 1
+            ;;
+          *)
+            echo "✅ Jira ticket $TICKET_ID validated (status: $status)"
+            ;;
+        esac
+      fi
+    fi
+  fi
+fi
+
+echo "✅ Commit message validated (Jira key + 5W1H complete)"
 exit 0
