@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Install git hooks for aipass-web-bridge
+# Install git hooks for aipass-web-bridge governance
 # Run: bash scripts/install-hooks.sh
 
 set -euo pipefail
@@ -7,35 +7,44 @@ set -euo pipefail
 HOOKS_DIR=".git/hooks"
 SCRIPT_DIR="scripts/hooks"
 
-echo "Installing Git hooks..."
+echo "Installing Git hooks for governance enforcement..."
 
 # Create hooks directory if it doesn't exist
 mkdir -p "$HOOKS_DIR"
 
-# Install pre-commit hook
-if [ -f "$SCRIPT_DIR/pre-commit" ]; then
-  cp "$SCRIPT_DIR/pre-commit" "$HOOKS_DIR/pre-commit"
-  chmod +x "$HOOKS_DIR/pre-commit"
-  echo "✅ Installed pre-commit hook"
-else
-  echo "❌ pre-commit hook script not found at $SCRIPT_DIR/pre-commit"
-  exit 1
-fi
+# Function to install a hook
+install_hook() {
+  local hook_name="$1"
+  local description="$2"
+  
+  if [ -f "$SCRIPT_DIR/$hook_name" ]; then
+    cp "$SCRIPT_DIR/$hook_name" "$HOOKS_DIR/$hook_name"
+    chmod +x "$HOOKS_DIR/$hook_name"
+    echo "✅ Installed $hook_name ($description)"
+  else
+    echo "❌ $hook_name script not found at $SCRIPT_DIR/$hook_name"
+    return 1
+  fi
+}
 
-# Install pre-push hook
-if [ -f "$SCRIPT_DIR/pre-push" ]; then
-  cp "$SCRIPT_DIR/pre-push" "$HOOKS_DIR/pre-push"
-  chmod +x "$HOOKS_DIR/pre-push"
-  echo "✅ Installed pre-push hook"
-else
-  echo "❌ pre-push hook script not found at $SCRIPT_DIR/pre-push"
-  exit 1
-fi
+# Install all governance hooks
+install_hook "pre-commit" "Secret scan + Jira ticket validation"
+install_hook "commit-msg" "Jira key + 5W1H completeness enforcement"
+install_hook "prepare-commit-msg" "Auto-inject 5W1H template"
+install_hook "post-commit" "Push commit info to Jira"
+install_hook "pre-push" "Test suite + atomic gate + Jira validation"
 
 echo ""
-echo "Git hooks installed successfully!"
-echo "  - pre-commit: Validates Jira key in message + secret scan"
-echo "  - pre-push: Runs npm test before push"
+echo "All governance hooks installed successfully!"
+echo ""
+echo "Installed hooks:"
+echo "  - pre-commit: Secret scan + Jira ticket existence/status check"
+echo "  - commit-msg: Jira key + 5W1H completeness enforcement"
+echo "  - prepare-commit-msg: Auto-inject 5W1H template from branch name"
+echo "  - post-commit: Push commit info to Jira"
+echo "  - pre-push: Test suite + atomic gate + Jira validation"
+echo ""
+echo "Jira credentials loaded from: ${HORO_CONSULTANT_ENV:-/Users/kimlenglim/Project/HoroConsultant/.env}"
 echo ""
 echo "To bypass hooks in emergency (not recommended):"
 echo "  git commit --no-verify"

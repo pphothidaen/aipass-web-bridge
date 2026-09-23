@@ -111,7 +111,7 @@ if [ -n "${JIRA_BASE_URL:-}" ] && [ -n "${JIRA_EMAIL:-}" ] && [ -n "${JIRA_API_T
       [ -z "$commit" ] && continue
 
       COMMIT_MSG=$(git log -1 --pretty=%B "$commit")
-      TICKET_ID=$(echo "$COMMIT_MSG" | grep -oE 'KAN-[0-9]+' | head -1)
+      TICKET_ID=$(echo "$COMMIT_MSG" | grep -oE 'KAN-[0-9]+' | head -1 || true)
       [ -z "$TICKET_ID" ] && continue
 
       if ! validate_ticket "$TICKET_ID"; then
@@ -148,7 +148,7 @@ if [ -n "${JIRA_BASE_URL:-}" ]; then
       [ -z "$commit" ] && continue
 
       COMMIT_MSG=$(git log -1 --pretty=%B "$commit")
-      TICKET_ID=$(echo "$COMMIT_MSG" | grep -oE 'KAN-[0-9]+' | head -1)
+      TICKET_ID=$(echo "$COMMIT_MSG" | grep -oE 'KAN-[0-9]+' | head -1 || true)
       [ -z "$TICKET_ID" ] && continue
 
       FILES=$(git diff-tree --no-commit-id --name-only -r "$commit" | tr '\n' ' ')

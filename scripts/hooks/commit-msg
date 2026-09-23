@@ -55,11 +55,11 @@ if echo "$COMMIT_MSG" | grep -qE "^## 5W1H"; then
 
   for field in "${REQUIRED_FIELDS[@]}"; do
     # Check field exists
-    if ! echo "$FIVE_W1H_SECTION" | grep -qE "$field"; then
+    if ! echo "$FIVE_W1H_SECTION" | grep -qE -- "$field"; then
       MISSING_FIELDS+=("$field")
     fi
     # Check field is not empty (line ends with just the field name or has only whitespace)
-    if echo "$FIVE_W1H_SECTION" | grep -qE "${field}[[:space:]]*$"; then
+    if echo "$FIVE_W1H_SECTION" | grep -qE -- "${field}[[:space:]]*$"; then
       EMPTY_FIELDS+=("$field")
     fi
   done
@@ -86,7 +86,7 @@ if echo "$COMMIT_MSG" | grep -qE "^## 5W1H"; then
 
   # Validate field content quality (min 3 chars after colon)
   for field in "${REQUIRED_FIELDS[@]}"; do
-    CONTENT=$(echo "$FIVE_W1H_SECTION" | grep -E "$field" | sed "s/.*$field[[:space:]]*//")
+    CONTENT=$(echo "$FIVE_W1H_SECTION" | grep -E -- "$field" | sed "s/.*$field[[:space:]]*//")
     if [ ${#CONTENT} -lt 3 ]; then
       echo "❌ COMMIT REJECTED: 5W1H field '$field' too short (min 3 chars)"
       echo "   Current: '$field$CONTENT'"
