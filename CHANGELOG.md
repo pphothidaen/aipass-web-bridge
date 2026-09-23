@@ -6,7 +6,7 @@
 - **Jira MCP Integration**: Governance requires `mcp__atlassian__createJiraIssue`/`editJiraIssue` for ticket management with `agent-*` labels (orchestrator, developer-core, developer-api, qa-tester, code-reviewer, devops, ba)
 
 ### Changed
-- Bumped version to `0.6.6`
+- Bumped version to `0.6.6` across `package.json`, `release/chrome-extension/manifest.json`, and `packages/core/aipass-bridge/extension/manifest.json`
 
 ## [0.6.5] - 2026-09-19
 
