@@ -18,6 +18,10 @@ jobs:
     outputs:
       ticket_id: ${{ steps.extract.outputs.ticket_id }}
     steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
       - name: Extract Jira Ticket ID
         id: extract
         run: |
