@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# Pre-commit hook: Secret scan on staged files only (Jira validation in commit-msg)
+set -euo pipefail
+
+# Secret scan on staged files
+STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACM 2>/dev/null || true)
+
+if [ -n "$STAGED_FILES" ]; then
+  SECRET_PATTERNS=(
+    'ATATT3[A-Za-z0-9_-]+'
+    'sk-[A-Za-z0-9]{48}'
+    'ghp_[A-Za-z0-9]{36}'
+    'API_KEY\s*[:=]\s*["\x27][A-Za-z0-9]{20,}["\x27]'
+    'SECRET\s*[:=]\s*["\x27][A-Za-z0-9]{20,}["\x27]'
+    'TOKEN\s*[:=]\s*["\x27][A-Za-z0-9]{20,}["\x27]'
+  )
+
+  for file in $STAGED_FILES; do
+    if [ -f "$file" ]; then
+      for pattern in "${SECRET_PATTERNS[@]}"; do
+        if git show ":$file" 2>/dev/null | grep -qE "$pattern"; then
+          echo "❌ COMMIT REJECTED: Potential secret in $file ($pattern)"
+          exit 1
+        fi
+      done
+    fi
+  done
+fi
+
+echo "✅ Pre-commit: secret scan clean"
+exit 0

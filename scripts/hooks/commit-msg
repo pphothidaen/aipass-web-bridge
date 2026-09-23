@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+# Commit-msg hook: Enforce Jira issue key + format in commit message
+set -euo pipefail
+
+COMMIT_MSG_FILE="${1:-}"
+COMMIT_MSG=""
+
+if [ -n "$COMMIT_MSG_FILE" ] && [ -f "$COMMIT_MSG_FILE" ]; then
+  COMMIT_MSG=$(cat "$COMMIT_MSG_FILE")
+else
+  echo "⚠️  COMMIT-MSG: Cannot read commit message file — skipping Jira validation"
+  exit 0
+fi
+
+# Skip for merge commits, fixup, squash
+if echo "$COMMIT_MSG" | grep -qE "^(Merge|fixup|squash)! "; then
+  exit 0
+fi
+
+# 1. Check Jira issue key format (e.g., HERMES-123, AIPASS-456)
+JIRA_KEY_REGEX="[A-Z]+-[0-9]+"
+if ! echo "$COMMIT_MSG" | grep -qE "$JIRA_KEY_REGEX"; then
+  echo "❌ COMMIT REJECTED: Commit message must include a Jira issue key"
+  echo "   Format: 'HERMES-123: description of changes'"
+  echo "   Current: $COMMIT_MSG"
+  exit 1
+fi
+
+# 2. Check format: KEY: description
+if ! echo "$COMMIT_MSG" | grep -qE "^[A-Z]+-[0-9]+: .{5,}"; then
+  echo "❌ COMMIT REJECTED: Use format 'JIRA-KEY: description (min 5 chars)'"
+  echo "   Current: $COMMIT_MSG"
+  exit 1
+fi
+
+echo "✅ Commit message validated (Jira key present)"
+exit 0

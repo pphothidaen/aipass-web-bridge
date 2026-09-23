@@ -1,6 +1,7 @@
 name = "aipass-web-bridge"
 main = "worker.js"
 compatibility_date = "2024-11-01"
+account_id = "bda49e4e77e00609cb1ef68561b0d9eb"
 
 [durable_objects]
 bindings = [{ name = "EXT_HUB", class_name = "ExtHub" }]

@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+# Pre-push hook: Run full test suite before pushing to remote
+set -euo pipefail
+
+echo "=== Pre-push Hook: Running Test Suite ==="
+
+# 1. Check git status is clean (no uncommitted changes)
+if [ -n "$(git status --porcelain 2>/dev/null)" ]; then
+  echo "⚠️  WARNING: You have uncommitted changes. Commit before pushing."
+  echo "   Continuing with push anyway..."
+fi
+
+# 2. Run npm test (full suite)
+echo "Running npm test..."
+if npm test 2>&1; then
+  echo "✅ All tests passed"
+else
+  echo "❌ PUSH REJECTED: Test suite failed. Fix all tests before pushing."
+  echo "   Run 'npm test' locally to see failures."
+  exit 1
+fi
+
+# 3. Verify no untracked .env or secret files
+if git ls-files --others --exclude-standard | grep -qE '(\.env$|secret|token)'; then
+  echo "❌ PUSH REJECTED: Untracked secret files detected"
+  echo "   Add them to .gitignore or remove them"
+  exit 1
+fi
+
+# 4. Check branch protection (warn if pushing directly to master/main)
+CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+if [ "$CURRENT_BRANCH" = "master" ] || [ "$CURRENT_BRANCH" = "main" ]; then
+  echo "⚠️  WARNING: Pushing directly to $CURRENT_BRANCH branch"
+  echo "   Ensure all changes are reviewed and CI/CD will validate"
+fi
+
+echo "✅ Pre-push checks passed — proceeding with push"
+exit 0

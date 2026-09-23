@@ -1,4 +1,14 @@
-## [0.6.4] - 2026-09-19
+## [0.6.6] - 2026-09-23
+
+### Added
+- **Governance & DoD**: Created [`GOVERNANCE.md`](./GOVERNANCE.md) — Definition of Done, Jira tracking mandate, mandatory `agent-*` labels for every ticket
+- **Git Hooks**: Added `scripts/hooks/pre-commit` (Jira key + secret scan) and `scripts/hooks/pre-push` (full test suite before push) + `scripts/install-hooks.sh` installer
+- **Jira MCP Integration**: Governance requires `mcp__atlassian__createJiraIssue`/`editJiraIssue` for ticket management with `agent-*` labels (orchestrator, developer-core, developer-api, qa-tester, code-reviewer, devops, ba)
+
+### Changed
+- Bumped version to `0.6.6`
+
+## [0.6.5] - 2026-09-19
 
 ### Added
 - **Governance & Guardrails**: Created [`GUARDRAILS.md`](./GUARDRAILS.md) defining the 5 architectural pillars (Security, Integrity, Isolation, Quality Gates, Fallback Governance).
