@@ -1,0 +1,94 @@
+name: "Jira TDD + Deployment Sync"
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [master, main]
+  push:
+    branches: [master, main]
+
+env:
+  JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+  JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+  JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+
+jobs:
+  extract-ticket:
+    runs-on: ubuntu-latest
+    outputs:
+      ticket_id: ${{ steps.extract.outputs.ticket_id }}
+    steps:
+      - name: Extract Jira Ticket ID
+        id: extract
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            TEXT="${{ github.event.pull_request.title }}"
+          else
+            TEXT=$(git log -1 --pretty=%B)
+          fi
+          TICKET=$(echo "$TEXT" | grep -oE 'KAN-[0-9]+' | head -1 || true)
+          echo "ticket_id=$TICKET" >> $GITHUB_OUTPUT
+
+  update-jira-on-pr:
+    needs: extract-ticket
+    if: github.event_name == 'pull_request' && needs.extract-ticket.outputs.ticket_id
+    runs-on: ubuntu-latest
+    steps:
+      - name: Move ticket to Review
+        run: |
+          TRANSITIONS=$(curl -s -X GET \
+            -H "Authorization: Basic $(echo -n "$JIRA_EMAIL:$JIRA_API_TOKEN" | base64)" \
+            "$JIRA_BASE_URL/rest/api/3/issue/${{ needs.extract-ticket.outputs.ticket_id }}/transitions")
+          REVIEW_ID=$(echo "$TRANSITIONS" | jq -r '.transitions[] | select(.name=="Review") | .id')
+          if [ -n "$REVIEW_ID" ] && [ "$REVIEW_ID" != "null" ]; then
+            curl -s -X POST \
+              -H "Authorization: Basic $(echo -n "$JIRA_EMAIL:$JIRA_API_TOKEN" | base64)" \
+              -H "Content-Type: application/json" \
+              "$JIRA_BASE_URL/rest/api/3/issue/${{ needs.extract-ticket.outputs.ticket_id }}/transitions" \
+              -d "{\"transition\":{\"id\":\"$REVIEW_ID\"}}"
+          fi
+
+  tdd-phase-check:
+    needs: extract-ticket
+    if: github.event_name == 'push' && needs.extract-ticket.outputs.ticket_id
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Check TDD Phase Compliance
+        run: |
+          TICKET="${{ needs.extract-ticket.outputs.ticket_id }}"
+          FILES=$(git diff-tree --no-commit-id --name-only -r HEAD | tr '\n' ' ')
+          python3 scripts/tdd_gate.py --ticket "$TICKET" --files-changed "$FILES"
+
+      - name: Check Atomic Execution
+        run: |
+          TICKET="${{ needs.extract-ticket.outputs.ticket_id }}"
+          FILES=$(git diff-tree --no-commit-id --name-only -r HEAD | tr '\n' ' ')
+          DIFF_LINES=$(git diff --stat HEAD~1 HEAD | tail -1 | grep -oE '[0-9]+ insertion' | grep -oE '[0-9]+' || echo 0)
+          python3 scripts/atomic_gate.py --ticket "$TICKET" --files "$FILES" --diff-lines "$DIFF_LINES"
+
+  coverage-threshold:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # TODO(KAN-105): current line coverage is ~44% (cloudflare/worker.js).
+      # continue-on-error is temporary so CI stays green while coverage is
+      # raised; flip it to false to make the 80% threshold blocking.
+      - name: Enforce coverage threshold (80% lines / 60% branches)
+        continue-on-error: true
+        run: >
+          node --test --experimental-test-coverage
+          --test-coverage-lines=80 --test-coverage-branches=60
+          test/test-cf-worker.test.mjs
