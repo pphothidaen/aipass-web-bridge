@@ -1,0 +1,98 @@
+#!/usr/bin/env bash
+# prepare-commit-msg hook — Auto-inject 5W1H template when Jira key detected
+# Installed to: .git/hooks/prepare-commit-msg
+
+COMMIT_MSG_FILE="$1"
+COMMIT_SOURCE="$2"
+
+# Skip for merge commits, squash, amend with existing message
+if [ "$COMMIT_SOURCE" = "merge" ] || [ "$COMMIT_SOURCE" = "squash" ]; then
+  exit 0
+fi
+
+# Skip if message already provided (e.g., git commit -m "...")
+if [ -n "$COMMIT_SOURCE" ] && [ "$COMMIT_SOURCE" != "message" ]; then
+  exit 0
+fi
+
+# If file already has content (from -m flag), skip template injection
+if [ -f "$COMMIT_MSG_FILE" ] && [ -s "$COMMIT_MSG_FILE" ]; then
+  if [ "$(cat "$COMMIT_MSG_FILE" | wc -c)" -gt 10 ]; then
+    exit 0
+  fi
+fi
+
+# Check branch name for Jira key
+BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null)
+JIRA_KEY=$(echo "$BRANCH" | grep -oE 'KAN-[0-9]+' | head -1)
+
+# Load Jira credentials
+ENV_FILE="${HORO_CONSULTANT_ENV:-/Users/kimlenglim/Project/HoroConsultant/.env}"
+if [ -f "$ENV_FILE" ]; then
+  eval "$(grep -E '^JIRA_(BASE_URL|EMAIL|API_TOKEN)=' "$ENV_FILE" | sed 's/^/export /')"
+fi
+
+if [ -n "$JIRA_KEY" ]; then
+  # Fetch ticket summary from Jira
+  TICKET_SUMMARY=""
+  if [ -n "${JIRA_BASE_URL:-}" ] && [ -n "${JIRA_EMAIL:-}" ] && [ -n "${JIRA_API_TOKEN:-}" ]; then
+    response=$(curl -s \
+      -H "Authorization: Basic $(echo -n "$JIRA_EMAIL:$JIRA_API_TOKEN" | base64)" \
+      -H "Accept: application/json" \
+      "$JIRA_BASE_URL/rest/api/3/issue/$JIRA_KEY" 2>/dev/null || echo "{}")
+    TICKET_SUMMARY=$(echo "$response" | python3 -c "
+import sys, json
+try:
+    data = json.load(sys.stdin)
+    print(data.get('fields', {}).get('summary', ''))
+except:
+    print('')
+" 2>/dev/null || echo "")
+  fi
+
+  if [ -n "$TICKET_SUMMARY" ]; then
+    cat > "$COMMIT_MSG_FILE" << EOF
+$JIRA_KEY: $TICKET_SUMMARY
+
+## 5W1H
+- Who: agent-developer_core
+- What: $TICKET_SUMMARY
+- When: Sprint
+- Where: $(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo 'branch')
+- Why:
+- How:
+
+## Files
+EOF
+  else
+    cat > "$COMMIT_MSG_FILE" << EOF
+$JIRA_KEY:
+
+## 5W1H
+- Who: agent-developer_core
+- What:
+- When: Sprint
+- Where:
+- Why:
+- How:
+
+## Files
+EOF
+  fi
+  echo "📝 5W1H template injected for $JIRA_KEY"
+else
+  cat > "$COMMIT_MSG_FILE" << EOF
+## 5W1H
+- Who: agent-developer_core
+- What:
+- When: Sprint
+- Where:
+- Why:
+- How:
+
+## Files
+EOF
+  echo "📝 5W1H template injected (no Jira key detected)"
+fi
+
+exit 0
