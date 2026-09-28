@@ -19,3 +19,9 @@ release/*-built*.zip
 .env
 release/*.zip
 release/aipass-bridge-chrome-built/
+
+# ZCode agent runtime files
+.zcode/
+
+# ZCode runtime directory
+.zcode/
