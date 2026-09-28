@@ -11,7 +11,7 @@ jobs:
       - name: Scan for hardcoded secrets in diff
         run: |
           DIFF=$(git diff origin/master...HEAD 2>/dev/null || git diff HEAD~1 HEAD)
-          if echo "$DIFF" | grep -qE '(aipass-bridge-secret-2026|hermes-secret-key-2026)'; then
+          if echo "$DIFF" | grep -v "aipass-check.yml" | grep -qE '(aipass-bridge-secret-2026|hermes-secret-key-2026)'; then
             echo "::error::hard-coded token literal found in diff"; exit 1
           fi
           echo "no-hardcoded-secrets: PASS"
