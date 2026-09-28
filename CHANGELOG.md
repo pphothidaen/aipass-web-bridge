@@ -1,3 +1,24 @@
+## [0.6.7] - 2026-09-28
+
+### Added
+- **MCP tools** (KAN-172): New lightweight MCP tools on the `/mcp` endpoint for
+  the free default model (`gemini-3.1-flash-lite`):
+  - `web_search` — web research via Gemini capability with cited sources
+    (max 10 results, Thai output).
+  - `summarize` — text summarization with styles (`สั้น`, `กระชับ`,
+    `รายละเอียด`, `bullet`).
+  - Extension offline → handler throws, converted to an MCP result with
+    `isError: true` (fail-fast, consistent with `aipass_chat`; no mock data).
+
+### Changed
+- **CI trigger**: `.github/workflows/ci.yml` now runs on pushes and PRs to
+  `main` in addition to `master` (the default branch previously had no CI).
+- Root `package.json` and Chrome extension manifests
+  (`packages/core/aipass-bridge/extension/manifest.json`,
+  `release/chrome-extension/manifest.json`) bumped 0.6.6 → 0.6.7 (version
+  sync is enforced by the manifest-consistency test; the extension UI itself
+  is unchanged, no repackaging required).
+
 ## [KAN-95] - 2026-09-24
 
 ### Fixed
