@@ -1,3 +1,28 @@
+## [KAN-95] - 2026-09-24
+
+### Fixed
+- **Hermes hooks**: Corrected 5 invalid hook event names in `~/.hermes/config.yaml`
+  (`on_conflict`, `post_tool_use`, `pre_dispatch`, `pre_output`, `pre_tool_use`)
+  that were unknown to Hermes — they logged warnings on every startup but never
+  fired. Mapped `post_tool_use` → `post_tool_call`, `pre_dispatch` →
+  `pre_gateway_dispatch`, `pre_tool_use` → `pre_tool_call`. Removed
+  `pre_output` and `on_conflict` (no valid equivalent).
+- **GitHub Actions CI deploy**: Bumped `actions/setup-node@v4` Node version from
+  20 → 24 to clear deprecation and fix `cloudflare/wrangler-action@v3` install
+  failures (wrangler 4.x requires Node 22+).
+
+### Changed
+- Documented `quota-reset-monitor` (job `0e965f19c895`) post-mortem: removed
+  from active jobs; 278 runs in audit log, ~244 with 0 tokens (silent no-ops).
+  Replacement is `quota-monitor` (`404593fc6bcc`) which runs every 15m and
+  checks bridge health, quota, node6 connectivity, and context usage.
+
+### Operations
+- Verified auto-reconnect: `aipass-web-bridge` and `gemini-web-bridge` both
+  reachable (HTTP 200). `node6` OVMS unreachable (SSH timeout — known, requires
+  on-site intervention). `quota-monitor.py` already detects and reports all
+  bridge states.
+
 ## [0.6.6] - 2026-09-23
 
 ### Added

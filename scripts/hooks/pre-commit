@@ -3,6 +3,7 @@
 set -euo pipefail
 
 ENV_FILE="${HORO_CONSULTANT_ENV:-/Users/kimlenglim/Project/HoroConsultant/.env}"
+PROJECT_ID="${JIRA_PROJECT_ID:-10001}"  # Default project ID for KAN
 
 # Load Jira credentials safely from HoroConsultant .env
 # (cron expressions and JSON values break under `set -e`, so extract only JIRA_* keys)
@@ -116,14 +117,19 @@ if [ -z "$TICKET_ID" ]; then
   fi
 fi
 
-# Validate ticket if found
-if [ -n "${TICKET_ID:-}" ]; then
-  validate_jira_ticket "$TICKET_ID" || exit 1
-else
-  echo "⚠️  No Jira ticket detected — skipping ticket validation"
-  echo "   Branch: $BRANCH"
-  echo "   Format: feature/KAN-123-description"
+# GOV-001: Pre-dispatch gate — MUST have a valid Jira ticket
+if [ -z "${TICKET_ID:-}" ]; then
+  echo "❌ COMMIT REJECTED: No Jira ticket detected"
+  echo "   Every commit MUST reference a Jira ticket."
+  echo ""
+  echo "   Option 1: Name your branch with ticket: feature/KAN-123-description"
+  echo "   Option 2: Include ticket in commit message: KAN-123: description"
+  echo "   Option 3: Create a ticket: $([ -n "${JIRA_BASE_URL:-}" ] && echo "$JIRA_BASE_URL/secure/CreateIssue.jspa?pid=$PROJECT_ID" || echo 'https://pansakorn.atlassian.net/secure/CreateIssue.jspa')"
+  exit 1
 fi
 
-echo "✅ Pre-commit: all checks passed"
+# Validate ticket exists and is not Done/Closed
+validate_jira_ticket "$TICKET_ID" || exit 1
+
+echo "✅ Pre-commit: all checks passed (Jira ticket $TICKET_ID validated)"
 exit 0
