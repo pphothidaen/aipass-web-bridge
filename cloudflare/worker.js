@@ -532,6 +532,34 @@ export class ExtHub {
         name: "aipass_status",
         description: "สถานะ cloud hub: extension, default model, latency ล่าสุด",
         inputSchema: { type: "object", properties: {} }
+      },
+      {
+        name: "web_search",
+        description: "ค้นหาข้อมูลจากเว็บผ่าน Gemini search capability — ได้ผลลัพธ์พร้อมแหล่งอ้างอิง (URL) สำหรับงาน research, news, ข้อมูลทั่วไป",
+        inputSchema: {
+          type: "object",
+          properties: {
+            query: { type: "string", description: "คำค้นหาที่ต้องการ" },
+            max_results: { type: "number", description: "จำนวนผลลัพธ์สูงสุด (default: 5, max: 10)" }
+          },
+          required: ["query"]
+        }
+      },
+      {
+        name: "summarize",
+        description: "สรุปเนื้อหาข้อความยาวๆ ให้สั้น กระชับ ด้วย Gemini model — รักษาประเด็นสำคัญไว้",
+        inputSchema: {
+          type: "object",
+          properties: {
+            text: { type: "string", description: "ข้อความที่ต้องการสรุป" },
+            style: {
+              type: "string",
+              enum: ["สั้น", "กระชับ", "รายละเอียด", "bullet"],
+              description: "สไตล์สรุป (default: 'กระชับ')"
+            }
+          },
+          required: ["text"]
+        }
       }
     ];
   }
@@ -603,6 +631,28 @@ export class ExtHub {
             last_chat_latency_ms: this.lastChatLatencyMs,
             conversation_cached: Boolean(this.conversationCache),
           }, null, 2);
+        } else if (name === "web_search") {
+          const query = args.query || "hello";
+          const maxResults = Math.min(args.max_results || 5, 10);
+          const searchPrompt = `ค้นหาข้อมูลเรื่อง "${query}" จากเว็บอย่างละเอียดพร้อมแหล่งอ้างอิง (URL) สูงสุด ${maxResults} ผลลัพธ์ แสดงผลเป็นภาษาไทย`;
+          if (!this.isExtConnected) throw new Error("extension offline (fail-fast, no mock)");
+          const modelId = this.defaultModel;
+          const conversationId = await this.resolveConversation(modelId);
+          const { chunks } = await this.runChatJob(searchPrompt, modelId, conversationId);
+          text = chunks.map(p => p?.text ?? "").join("");
+        } else if (name === "summarize") {
+          const textContent = args.text || "";
+          const style = args.style || "กระชับ";
+          const stylePrompt = style === "bullet" ? "สรุปเป็น bullet points" :
+                             style === "รายละเอียด" ? "สรุปอย่างละเอียดครบถ้วน" :
+                             style === "สั้น" ? "สรุปสั้นๆ ใน 2-3 ประโยค" :
+                             "สรุปกระชับใน 3-5 ประเด็นสำคัญ";
+          const summarizePrompt = `${stylePrompt} โดยคงประเด็นสำคัญทั้งหมดไว้:\n\n${textContent}`;
+          if (!this.isExtConnected) throw new Error("extension offline (fail-fast, no mock)");
+          const modelId = this.defaultModel;
+          const conversationId = await this.resolveConversation(modelId);
+          const { chunks } = await this.runChatJob(summarizePrompt, modelId, conversationId);
+          text = chunks.map(p => p?.text ?? "").join("");
         } else {
           return json({ jsonrpc: "2.0", id,
                         error: { code: -32601, message: `unknown tool: ${name}` } }, 200, mcpHeaders);
