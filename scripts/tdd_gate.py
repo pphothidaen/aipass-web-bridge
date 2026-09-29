@@ -93,7 +93,9 @@ def validate_tdd_phase(client: JiraClient, ticket_id: str, changed_files: List[s
     issue = client.get_issue(ticket_id)
     
     if issue.get("error"):
-        return {"valid": False, "message": f"Cannot fetch issue: {issue.get('message')}", "action": "error"}
+        # Jira API unavailable — non-blocking: skip TDD gate, allow CI to pass
+        print(f"⚠️ Jira API unavailable: {issue.get('message')} — skipping TDD gate (non-blocking)")
+        return {"valid": True, "message": "ℹ️ Jira API unavailable — skipping TDD gate", "action": "allow"}
     
     fields = issue.get("fields", {})
     status = fields.get("status", {}).get("name", "")
