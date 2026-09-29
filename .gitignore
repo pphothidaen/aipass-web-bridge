@@ -1,27 +1,46 @@
-# Secretary runtime logs
-logs/
-
-# Node
-node_modules/
-
-# macOS
-.DS_Store
-
-# Python
-__pycache__/
-*.pyc
 
 # Built extension artifacts with real tokens injected (GUARDRAILS G1)
-release/*-built*/
-release/*-built*.zip
-
+# Node
+# Python
+# Secretary runtime logs
 # Secrets & build artifacts
+# ZCode agent runtime files
+# ZCode runtime directory
+# macOS
+*.dist-info/
+*.egg-info/
+*.pyc
+.DS_Store
 .env
+.git/
+.hg/
+.svn/
+.zcode/
+__pycache__/
+allure-report/
+allure-results/
+bazel-*/
+bower_components/
+cdk.out/
+cmake-build-*/
+cmakefiles/
+coverage/
+deriveddata/
+eggs/
+htmlcov/
+jspm_packages/
+lcov-report/
+logs/
+node_modules/
+pip-wheel-metadata/
+playwright-report/
+pods/
+release/*-built*.zip
+release/*-built*/
 release/*.zip
 release/aipass-bridge-chrome-built/
-
-# ZCode agent runtime files
-.zcode/
-
-# ZCode runtime directory
-.zcode/
+site-packages/
+storybook-static/
+test-results/
+venv/
+wheels/
