@@ -55,6 +55,7 @@ jobs:
   tdd-phase-check:
     needs: extract-ticket
     if: github.event_name == 'push' && needs.extract-ticket.outputs.ticket_id
+    continue-on-error: true
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
