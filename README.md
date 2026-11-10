@@ -280,6 +280,16 @@ AIPASS Web Bridge provides a suite of remote MCP tools via `POST /mcp` conformin
 
 ---
 
+## 🌟 Support & Community
+
+If you find **AIPASS Web Bridge** useful for your agentic workflows or developer toolchain:
+
+- **Star the repository:** Keep track of the latest updates, model sync improvements, and edge runtime patches.
+- **Fork the project:** Add custom MCP tools, integrate proprietary enterprise scopes, or adapt it for other browser-backed LLMs.
+- **Contribute & Report:** Found an edge-case disconnect or model schema change? Open an [Issue](https://github.com/pphothidaen/aipass-web-bridge/issues) or submit a Pull Request.
+
+---
+
 ## 📄 License
 
 MIT License — Released for open research, learning, and enterprise AI enablement.
