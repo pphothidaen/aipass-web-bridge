@@ -33,6 +33,17 @@ It enables autonomous AI clients and developer tools — **Hermes Agent**, **Sec
 - **Blue Team / Red Team CI Governance** — Four CI gates on every push: `smoke`, `blueteam` (gitleaks, npm audit, secret hygiene), `redteam` (unit tests, chaos suites: split-brain, upstream 403 injection, failover, epoch-replay, queue overflow, SSRF), and `deploy` (Wrangler + post-deploy smoke).
 - **VS Code Extension** — A companion extension connects to the same Cloudflare Worker, so AIPASS models are available directly inside the editor.
 
+## 🌟 Support & Community
+
+[![GitHub Stars](https://img.shields.io/github/stars/pphothidaen/aipass-web-bridge?style=social)](https://github.com/pphothidaen/aipass-web-bridge/stargazers)
+[![GitHub Forks](https://img.shields.io/github/forks/pphothidaen/aipass-web-bridge?style=social)](https://github.com/pphothidaen/aipass-web-bridge/network/members)
+[![GitHub Issues](https://img.shields.io/github/issues/pphothidaen/aipass-web-bridge?style=social)](https://github.com/pphothidaen/aipass-web-bridge/issues)
+
+Find **AIPASS Web Bridge** useful for your agentic workflows or developer toolchain? Help support and grow the project:
+- **⭐ Star the repo:** Keep track of the latest updates, model sync improvements, and edge runtime patches.
+- **🍴 Fork & Adapt:** Add custom MCP tools, integrate proprietary enterprise scopes, or adapt it for other browser-backed LLMs.
+- **💬 Contribute:** Spot an edge-case disconnect or model schema change? Open an [Issue](https://github.com/pphothidaen/aipass-web-bridge/issues) or submit a Pull Request.
+
 ### 🚀 Quickstart
 
 #### 1. Deploy the Cloudflare Worker
@@ -277,16 +288,6 @@ AIPASS Web Bridge provides a suite of remote MCP tools via `POST /mcp` conformin
 [![Hugging Face Profile](https://img.shields.io/badge/HuggingFace-pphothidaen-181717?style=for-the-badge&logo=huggingface&logoColor=white)](https://huggingface.co/pphothidaen)
 
 </div>
-
----
-
-## 🌟 Support & Community
-
-If you find **AIPASS Web Bridge** useful for your agentic workflows or developer toolchain:
-
-- **Star the repository:** Keep track of the latest updates, model sync improvements, and edge runtime patches.
-- **Fork the project:** Add custom MCP tools, integrate proprietary enterprise scopes, or adapt it for other browser-backed LLMs.
-- **Contribute & Report:** Found an edge-case disconnect or model schema change? Open an [Issue](https://github.com/pphothidaen/aipass-web-bridge/issues) or submit a Pull Request.
 
 ---
 
