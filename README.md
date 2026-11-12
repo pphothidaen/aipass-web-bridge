@@ -291,6 +291,14 @@ AIPASS Web Bridge provides a suite of remote MCP tools via `POST /mcp` conformin
 
 ---
 
+## 💡 Credits and Inspiration
+
+This project is inspired by and built upon the core concepts, architecture, and innovative design of [aipass-web-bridge](https://github.com/pphothidaen/aipass-bridge) created by **pphothidaen**. 
+
+Special thanks to the author for pioneering the production-grade Edge AI gateway approach that securely bridges live browser sessions into OpenAI-compatible APIs and Remote MCP servers using Cloudflare Durable Objects.
+
+---
+
 ## 📄 License
 
 MIT License — Released for open research, learning, and enterprise AI enablement.
