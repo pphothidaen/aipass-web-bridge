@@ -382,3 +382,19 @@ test("Chrome Extension: background.js routes vertex jobs to vertexaisearch tab a
   assert.ok(pageSource.includes("flush();"));
   assert.ok(pageSource.includes("[Gemini Enterprise @"));
 });
+
+test("Chrome Extension: popup and background support per-page online/offline status and usable models listing", () => {
+  const bgSource = fs.readFileSync(path.join(__dirname, "../packages/core/aipass-bridge/extension/background.js"), "utf8");
+  assert.ok(bgSource.includes("getPagesStatus"));
+  assert.ok(bgSource.includes("siteModels"));
+  assert.ok(bgSource.includes("pages_status"));
+
+  const popupHtml = fs.readFileSync(path.join(__dirname, "../packages/core/aipass-bridge/extension/popup.html"), "utf8");
+  assert.ok(popupHtml.includes("id=\"pageAipass\""));
+  assert.ok(popupHtml.includes("id=\"pageVertex\""));
+  assert.ok(popupHtml.includes("id=\"usableSection\""));
+
+  const popupJs = fs.readFileSync(path.join(__dirname, "../packages/core/aipass-bridge/extension/popup.js"), "utf8");
+  assert.ok(popupJs.includes("renderPages"));
+  assert.ok(popupJs.includes("renderUsableModels"));
+});

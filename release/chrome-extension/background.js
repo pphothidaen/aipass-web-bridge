@@ -174,6 +174,55 @@ async function refreshModels() {
   }
 }
 
+// Discovered models cache per site
+const siteModels = {
+  aipass: [
+    { id: 'gemini-3.5-flash-lite', name: 'Gemini 3.5 Flash Lite', free: true, kind: 'chat', provider: 'AiPASS' },
+    { id: 'gemini-3.1-flash-lite', name: 'Gemini 3.1 Flash Lite', free: true, kind: 'chat', provider: 'AiPASS' },
+    { id: 'auto', name: 'Auto (Free)', free: true, kind: 'chat', provider: 'AiPASS' },
+    { id: 'claude-sonnet-5@default', name: 'Claude Sonnet 5', free: false, kind: 'chat', provider: 'Anthropic' },
+    { id: 'glm-5.3', name: 'GLM 5.3', free: false, kind: 'chat', provider: 'Zhipu' },
+    { id: 'Kimi-K2.7-Code', name: 'Kimi K2.7 Code', free: false, kind: 'chat', provider: 'Moonshot' },
+  ],
+  vertex: [
+    { id: 'gemini-enterprise-vertex', name: 'Gemini Enterprise', free: true, kind: 'chat', provider: 'Vertex AI Search' },
+    { id: 'gemini-3.5-flash-lite', name: 'Gemini 3.5 Flash Lite (Vertex)', free: true, kind: 'chat', provider: 'Vertex AI Search' },
+  ],
+};
+
+async function getPagesStatus() {
+  const [aipassTabs, vertexTabs] = await Promise.all([
+    chrome.tabs.query({ url: ['https://*.aipass.net/*', 'https://aipass.net/*'] }).catch(() => []),
+    chrome.tabs.query({ url: ['https://vertexaisearch.cloud.google/*', 'https://*.cloud.google/*'] }).catch(() => []),
+  ]);
+
+  const isLive = (t) => t && !t.discarded && t.status !== 'unloaded';
+  const aipassLive = aipassTabs.filter(isLive);
+  const vertexLive = vertexTabs.filter(isLive);
+
+  const aipassTab = aipassLive[0] || aipassTabs[0] || null;
+  const vertexTab = vertexLive[0] || vertexTabs[0] || null;
+
+  return {
+    aipass: {
+      name: 'AiPASS Chat',
+      url: 'https://de.aipass.net/chat',
+      online: Boolean(aipassTab && (!aipassTab.discarded || aipassLive.length > 0)),
+      tabId: aipassTab?.id ?? null,
+      tabUrl: aipassTab?.url ?? null,
+      models: siteModels.aipass || [],
+    },
+    vertex: {
+      name: 'Gemini Enterprise (Vertex AI Search)',
+      url: 'https://vertexaisearch.cloud.google/',
+      online: Boolean(vertexTab && (!vertexTab.discarded || vertexLive.length > 0)),
+      tabId: vertexTab?.id ?? null,
+      tabUrl: vertexTab?.url ?? null,
+      models: siteModels.vertex || [],
+    },
+  };
+}
+
 async function findChatTab(forModel = null) {
   const isVertex = Boolean(
     forModel?.includes('vertex') ||
@@ -710,7 +759,17 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     if (p.type === 'MODELS_DISCOVERED' || p.type === 'MODEL_READY'
       || p.type === 'STREAM_CHUNK' || p.type === 'STREAM_DONE'
       || p.type === 'STREAM_ERROR' || p.type === 'SESSION_READY'
-      || p.type === 'MODEL_UPDATED') {
+      || p.type === 'MODEL_UPDATED' || p.kind === 'models_discovered') {
+      if ((p.type === 'MODELS_DISCOVERED' || p.kind === 'models_discovered') && Array.isArray(p.models) && p.models.length) {
+        const senderUrl = _sender?.tab?.url || '';
+        const isVertex = senderUrl.includes('vertexaisearch') || senderUrl.includes('cloud.google')
+          || p.models.some((m) => m.id?.includes('vertex'));
+        if (isVertex) {
+          siteModels.vertex = p.models.map((m) => ({ ...m, provider: 'Vertex AI Search' }));
+        } else {
+          siteModels.aipass = p.models.map((m) => ({ ...m, provider: m.provider || 'AiPASS' }));
+        }
+      }
       postBridge(p);
     }
     return;
@@ -796,6 +855,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg?.type === 'status') {
     (async () => {
       const tab = await findChatTab();
+      const pages = await getPagesStatus();
       sendResponse({
         connected,
         bridgeConnected,
@@ -803,7 +863,49 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         bridgeUrl: await bridgeUrl(),
         tab: tab ? { id: tab.id, url: tab.url } : null,
         activeJobs: jobTabs.size,
+        pages,
       });
+    })();
+    return true;
+  }
+  if (msg?.type === 'pages_status') {
+    (async () => {
+      const pages = await getPagesStatus();
+      sendResponse({ ok: true, pages });
+    })();
+    return true;
+  }
+  if (msg?.type === 'open_page') {
+    const targetUrl = msg.url || 'https://de.aipass.net/chat';
+    (async () => {
+      const matchPattern = targetUrl.includes('vertex') ? 'https://vertexaisearch.cloud.google/*' : 'https://de.aipass.net/*';
+      const existing = await chrome.tabs.query({ url: matchPattern }).catch(() => []);
+      if (existing.length && existing[0]?.id) {
+        await chrome.tabs.update(existing[0].id, { active: true });
+        if (existing[0].windowId) await chrome.windows.update(existing[0].windowId, { focused: true });
+        sendResponse({ ok: true, tabId: existing[0].id, switched: true });
+      } else {
+        const tab = await chrome.tabs.create({ url: targetUrl });
+        sendResponse({ ok: true, tabId: tab.id, created: true });
+      }
+    })();
+    return true;
+  }
+  if (msg?.type === 'scan_pages') {
+    (async () => {
+      const tabs = await chrome.tabs.query({
+        url: [
+          'https://*.aipass.net/*',
+          'https://aipass.net/*',
+          'https://vertexaisearch.cloud.google/*',
+          'https://*.cloud.google/*',
+        ],
+      }).catch(() => []);
+      for (const t of tabs) {
+        chrome.tabs.sendMessage(t.id, { type: 'discover_models' }).catch(() => {});
+      }
+      const pages = await getPagesStatus();
+      sendResponse({ ok: true, scannedCount: tabs.length, pages });
     })();
     return true;
   }

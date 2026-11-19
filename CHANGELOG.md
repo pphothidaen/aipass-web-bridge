@@ -1,3 +1,15 @@
+## [0.7.3] - 2026-11-19
+
+### Added
+- **Per-Page Connection Status & Multi-Site Discovery UI in Chrome Extension**:
+  - `popup.html` & `popup.js`: Added dedicated **Site Connections (สถานะการเชื่อมต่อเพจ)** cards displaying real-time Online/Offline status for both `https://de.aipass.net` and `https://vertexaisearch.cloud.google/`.
+  - Discovered model tags shown per website with status badges, direct "Open / Switch" tab buttons, and interactive tab scan triggers.
+  - Added dedicated **Usable Models (โมเดลที่ใช้งานได้จริง)** section listing all active, verified models across connected sites with filtering (All, Free, AiPASS, Vertex) and one-click default model selection.
+  - `background.js`: Added `getPagesStatus()`, `siteModels` discovery cache per provider, and handlers for `pages_status`, `open_page`, and `scan_pages`.
+
+### Changed
+- **Version Bumping**: Synchronized version to `0.7.3` across `package.json`, `packages/core/.../manifest.json`, `release/chrome-extension/manifest.json`, and built extension artifacts.
+
 ## [0.7.2] - 2026-11-19
 
 ### Fixed

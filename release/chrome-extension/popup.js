@@ -5,6 +5,9 @@ let bridge = DEFAULT_BRIDGE;
 let modelSignature = '';
 let currentAction = null;   // what the hero button does right now
 let pollTimer = null;
+let currentFilter = 'all';
+let lastPages = null;
+let lastSrv = null;
 
 /* ------------------------------------------------------------------ helpers */
 
@@ -192,6 +195,192 @@ function renderCredits(srv) {
   setText($('creditsReset'), credits.periodEndsAt ? `resets ${credits.periodEndsAt.slice(5, 10)}` : '');
 }
 
+function renderPages(pages) {
+  if (!pages) return;
+  lastPages = pages;
+
+  // 1. de.aipass.net
+  const aipass = pages.aipass;
+  const aipassOnline = Boolean(aipass?.online);
+  setClass($('dotAipass'), 'page-dot', aipassOnline ? 'dot-online' : 'dot-offline');
+  setClass($('badgeAipass'), 'badge-status', aipassOnline ? 'badge-online' : 'badge-offline');
+  setText($('badgeAipass'), aipassOnline ? 'Online' : 'Offline');
+  setText($('subAipass'), aipassOnline ? (aipass.tabUrl ? shortId(aipass.tabUrl) : 'Tab active & ready') : 'Tab offline · Click Open to connect');
+  setText($('btnAipassAction'), aipassOnline ? 'Switch' : 'Open');
+
+  const chipsAipass = $('chipsAipass');
+  chipsAipass.innerHTML = '';
+  const aipassModels = aipass?.models || [];
+  if (aipassModels.length) {
+    for (const m of aipassModels.slice(0, 5)) {
+      const sp = document.createElement('span');
+      sp.className = `chip ${m.free ? 'chip-free' : ''}`;
+      sp.textContent = m.name || m.id;
+      chipsAipass.appendChild(sp);
+    }
+    if (aipassModels.length > 5) {
+      const extra = document.createElement('span');
+      extra.className = 'chip';
+      extra.textContent = `+${aipassModels.length - 5} more`;
+      chipsAipass.appendChild(extra);
+    }
+  } else {
+    const empty = document.createElement('span');
+    empty.className = 'chip';
+    empty.style.color = 'var(--faint)';
+    empty.textContent = aipassOnline ? 'Discovering models…' : 'No tab connected';
+    chipsAipass.appendChild(empty);
+  }
+
+  // 2. Vertex AI Search (Gemini Enterprise)
+  const vertex = pages.vertex;
+  const vertexOnline = Boolean(vertex?.online);
+  setClass($('dotVertex'), 'page-dot', vertexOnline ? 'dot-online' : 'dot-offline');
+  setClass($('badgeVertex'), 'badge-status', vertexOnline ? 'badge-online' : 'badge-offline');
+  setText($('badgeVertex'), vertexOnline ? 'Online' : 'Offline');
+  setText($('subVertex'), vertexOnline ? (vertex.tabUrl ? shortId(vertex.tabUrl) : 'Tab active & ready') : 'Tab offline · Click Open to connect');
+  setText($('btnVertexAction'), vertexOnline ? 'Switch' : 'Open');
+
+  const chipsVertex = $('chipsVertex');
+  chipsVertex.innerHTML = '';
+  const vertexModels = vertex?.models || [];
+  if (vertexModels.length) {
+    for (const m of vertexModels) {
+      const sp = document.createElement('span');
+      sp.className = `chip ${m.free ? 'chip-free' : ''}`;
+      sp.textContent = m.name || m.id;
+      chipsVertex.appendChild(sp);
+    }
+  } else {
+    const empty = document.createElement('span');
+    empty.className = 'chip';
+    empty.style.color = 'var(--faint)';
+    empty.textContent = vertexOnline ? 'Discovering models…' : 'No tab connected';
+    chipsVertex.appendChild(empty);
+  }
+}
+
+function renderUsableModels(pages, srv) {
+  const container = $('usableList');
+  const countEl = $('usableCount');
+  if (!container) return;
+
+  const map = new Map();
+
+  // From Vertex if online
+  if (pages?.vertex?.online) {
+    for (const m of (pages.vertex.models || [])) {
+      map.set(`vertex:${m.id}`, {
+        id: m.id,
+        name: m.name || m.id,
+        source: 'vertex',
+        sourceName: 'Vertex AI',
+        free: Boolean(m.free || m.isFreeCredit),
+        tier: 'enterprise',
+      });
+    }
+  }
+
+  // From AiPASS if online
+  if (pages?.aipass?.online) {
+    for (const m of (pages.aipass.models || [])) {
+      map.set(`aipass:${m.id}`, {
+        id: m.id,
+        name: m.name || m.id,
+        source: 'aipass',
+        sourceName: 'AiPASS',
+        free: Boolean(m.free || m.free_credit),
+        tier: m.free ? 'free' : 'paid',
+      });
+    }
+  }
+
+  // From server bridge status
+  if (srv?.models && Array.isArray(srv.models)) {
+    for (const m of srv.models) {
+      const isVertex = m.id?.includes('vertex') || m.id?.includes('enterprise');
+      const srcKey = isVertex ? 'vertex' : 'aipass';
+      const key = `${srcKey}:${m.id}`;
+      if (!map.has(key)) {
+        map.set(key, {
+          id: m.id,
+          name: m.name || m.id,
+          source: srcKey,
+          sourceName: isVertex ? 'Vertex AI' : 'AiPASS',
+          free: Boolean(m.free || m.free_credit || m.id?.includes('flash-lite') || m.id === 'auto'),
+          tier: (m.free || m.id?.includes('flash-lite') || m.id === 'auto') ? 'free' : 'paid',
+        });
+      }
+    }
+  }
+
+  const allUsable = Array.from(map.values());
+  setText(countEl, `(${allUsable.length})`);
+
+  let filtered = allUsable;
+  if (currentFilter === 'free') {
+    filtered = allUsable.filter((m) => m.free);
+  } else if (currentFilter === 'aipass') {
+    filtered = allUsable.filter((m) => m.source === 'aipass');
+  } else if (currentFilter === 'vertex') {
+    filtered = allUsable.filter((m) => m.source === 'vertex');
+  }
+
+  container.innerHTML = '';
+  if (!filtered.length) {
+    const empty = document.createElement('div');
+    empty.style.color = 'var(--faint)';
+    empty.style.fontSize = '11px';
+    empty.style.padding = '6px';
+    empty.textContent = allUsable.length
+      ? 'No models match current filter.'
+      : 'Open a de.aipass.net or Vertex AI Search tab to load usable models.';
+    container.appendChild(empty);
+    return;
+  }
+
+  const defaultModel = srv?.defaultModel || '';
+
+  for (const m of filtered) {
+    const row = document.createElement('div');
+    const isSelected = m.id === defaultModel;
+    row.className = `usable-row ${isSelected ? 'is-default' : ''}`;
+    row.title = `Click to set ${m.id} as default model`;
+
+    const titleWrap = document.createElement('div');
+    titleWrap.className = 'usable-id';
+    titleWrap.textContent = m.name || m.id;
+
+    const srcBadge = document.createElement('span');
+    srcBadge.className = 'badge-tag badge-src';
+    srcBadge.textContent = m.sourceName;
+
+    const costBadge = document.createElement('span');
+    costBadge.className = `badge-tag ${m.free ? 'badge-free' : 'badge-paid'}`;
+    costBadge.textContent = m.free ? 'Free' : (m.tier === 'enterprise' ? 'Enterprise' : 'Credit');
+
+    row.appendChild(titleWrap);
+    row.appendChild(srcBadge);
+    row.appendChild(costBadge);
+
+    row.addEventListener('click', async () => {
+      try {
+        await fetch(`${bridge}/config`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ defaultModel: m.id }),
+        });
+        toast(`Default model: ${m.id}`);
+        render();
+      } catch {
+        toast('Could not reach the bridge');
+      }
+    });
+
+    container.appendChild(row);
+  }
+}
+
 async function render() {
   const saved = await chrome.storage.local.get(['bridgeUrl', 'bridgeToken']);
   if (saved?.bridgeUrl) {
@@ -231,6 +420,11 @@ async function render() {
   if (srv) renderModels(srv.models ?? [], srv.defaultModel);
   renderCredits(srv);
 
+  lastPages = sw?.pages || null;
+  lastSrv = srv;
+  if (lastPages) renderPages(lastPages);
+  renderUsableModels(lastPages, srv);
+
   // Don't clobber the field while it is being edited.
   if (document.activeElement !== $('url')) {
     $('url').value = bridge || DEFAULT_BRIDGE;
@@ -245,6 +439,33 @@ async function render() {
 /* ------------------------------------------------------------------- wiring */
 
 $('actBtn').addEventListener('click', () => currentAction?.());
+
+$('btnAipassAction')?.addEventListener('click', () => {
+  chrome.runtime.sendMessage({ type: 'open_page', url: 'https://de.aipass.net/chat' });
+  toast('Opening de.aipass.net…');
+  setTimeout(render, 500);
+});
+
+$('btnVertexAction')?.addEventListener('click', () => {
+  chrome.runtime.sendMessage({ type: 'open_page', url: 'https://vertexaisearch.cloud.google/' });
+  toast('Opening Vertex AI Search…');
+  setTimeout(render, 500);
+});
+
+$('btnScan')?.addEventListener('click', async () => {
+  toast('Scanning tabs…');
+  await chrome.runtime.sendMessage({ type: 'scan_pages' }).catch(() => {});
+  setTimeout(render, 600);
+});
+
+document.querySelectorAll('#filterRow button').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#filterRow button').forEach((b) => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentFilter = btn.dataset.filter || 'all';
+    if (lastPages || lastSrv) renderUsableModels(lastPages, lastSrv);
+  });
+});
 
 $('model').addEventListener('change', async () => {
   const value = $('model').value;
