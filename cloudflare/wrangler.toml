@@ -3,12 +3,25 @@ main = "worker.js"
 compatibility_date = "2024-11-01"
 account_id = "bda49e4e77e00609cb1ef68561b0d9eb"
 
+[vars]
+ENVIRONMENT = "production"
+
+[[env.production]]
+name = "aipass-web-bridge"
+main = "worker.js"
+compatibility_date = "2024-11-01"
+account_id = "bda49e4e77e00609cb1ef68561b0d9eb"
+# secrets are pulled from the Cloudflare API or .env file, not from here
+
+# The [env.production] section is not really needed since the defaults apply
+# but we keep it for consistency
+
 [durable_objects]
 bindings = [{ name = "EXT_HUB", class_name = "ExtHub" }]
 
 [[migrations]]
 tag = "v1"
-new_sqlite_classes = ["ExtHub"]
+new_sqlite_classes = ["Ext_Hub"]
 
 # Secrets are set via the Cloudflare dashboard or `npx wrangler secret put` —
 # NEVER commit secret values here (see docs/CONFIGURATION.md for the storage

@@ -22,6 +22,9 @@ const MODEL_FALLBACK = ["gemini-3.1-flash-lite", "claude-sonnet-5@default"];
 const MODELS_LOADER_URL = "/loaders/list-models.data?_routes=routes%2Floaders%2Flist-models";
 const CONVERSATIONS_LOADER_URL = "/loaders/list-conversations.data?_routes=routes%2Floaders%2Flist-converstaions";
 
+// Gemini-native feature flag (set via Doppler: GEMINI_NATIVE_ENABLED=true)
+const GEMINI_NATIVE_ENABLED = (globalThis.GEMINI_NATIVE_ENABLED ?? "true") === "true";
+
 // ── Model classification (ported from local bridge) ─────────────────────────
 const KIND_IDS = {
   image: ["gemini-2.5-flash-image", "gemini-3.1-flash-image", "gemini-3.1-flash-lite-image",
@@ -495,6 +498,187 @@ export class ExtHub {
     }
   }
 
+  // ─── Gemini-Native Endpoints (preserves grounding, thinking_config, etc.) ───
+  
+  async geminiNativeChatCompletions(request) {
+    if (!this.isExtConnected) {
+      return jsonOpenAI(request, 503, {
+        error: { message: "no extension connected to the cloud hub", code: "unavailable" },
+      });
+    }
+
+    const body = await request.json();
+    const created = Math.floor(Date.now() / 1000);
+    const id = `chatcmpl-${crypto.randomUUID().slice(0, 24)}`;
+
+    // Pass through Gemini-native request body to extension (no OpenAI translation)
+    // Expects: model, messages, tools (google_search), thinking_config, safety_settings, generation_config
+    const modelId = body.model || "gemini-3.5-flash-lite";
+
+    if (body.stream) {
+      const { readable, writable } = new TransformStream();
+      const writer = writable.getWriter();
+      const enc = new TextEncoder();
+      const frame = (obj) => writer.write(enc.encode(`data: ${JSON.stringify(obj)}\n\n`));
+      const sseHeaders = {
+        "content-type": "text/event-stream; charset=utf-8",
+        "cache-control": "no-cache, no-transform",
+        "access-control-allow-origin": "*",
+      };
+
+      (async () => {
+        try {
+          frame({ id, object: "chat.completion.chunk", created, model: modelId,
+                  choices: [{ index: 0, delta: { role: "assistant" } }] });
+          
+          // Use a dedicated conversation for Gemini-native to avoid pollution
+          const conversationId = await this.resolveConversation(modelId);
+          
+          // Send GEMINI_NATIVE_REQUEST to extension with full payload
+          const { finishReason, groundingMetadata } = await this.runGeminiNativeJob(body, conversationId, (delta) => {
+            if (delta) frame({ id, object: "chat.completion.chunk", created, model: modelId,
+                               choices: [{ index: 0, delta: { content: delta } }] });
+          });
+          
+          // Include grounding_metadata in final chunk if present
+          if (groundingMetadata) {
+            frame({ id, object: "chat.completion.chunk", created, model: modelId,
+                    choices: [{ index: 0, delta: {}, finish_reason: finishReason || "stop", grounding_metadata: groundingMetadata }] });
+          } else {
+            frame({ id, object: "chat.completion.chunk", created, model: modelId,
+                    choices: [{ index: 0, delta: {}, finish_reason: finishReason || "stop" }] });
+          }
+          writer.write(enc.encode("data: [DONE]\n\n"));
+          writer.close();
+        } catch (err) {
+          if (/conversation not found|404/i.test(String(err.message || err))) {
+            try {
+              this.conversationCache = null;
+              const conversationId = await this.resolveConversation(modelId);
+              const { finishReason, groundingMetadata } = await this.runGeminiNativeJob(body, conversationId, (delta) => {
+                if (delta) frame({ id, object: "chat.completion.chunk", created, model: modelId,
+                                   choices: [{ index: 0, delta: { content: delta } }] });
+              });
+              if (groundingMetadata) {
+                frame({ id, object: "chat.completion.chunk", created, model: modelId,
+                        choices: [{ index: 0, delta: {}, finish_reason: finishReason || "stop", grounding_metadata: groundingMetadata }] });
+              } else {
+                frame({ id, object: "chat.completion.chunk", created, model: modelId,
+                        choices: [{ index: 0, delta: {}, finish_reason: finishReason || "stop" }] });
+              }
+              writer.write(enc.encode("data: [DONE]\n\n"));
+              return writer.close();
+            } catch (retryErr) {
+              frame({ id, object: "chat.completion.chunk", created, model: modelId,
+                      choices: [{ index: 0, delta: {} }], error: { message: String(retryErr.message || retryErr) } });
+              writer.write(enc.encode("data: [DONE]\n\n"));
+              return writer.close();
+            }
+          }
+          frame({ id, object: "chat.completion.chunk", created, model: modelId,
+                  choices: [{ index: 0, delta: {} }], error: { message: String(err.message || err) } });
+          writer.write(enc.encode("data: [DONE]\n\n"));
+          writer.close();
+        }
+      })();
+
+      return new Response(readable, { status: 200, headers: sseHeaders });
+    }
+
+    // Non-streaming
+    const started = Date.now();
+    try {
+      const conversationId = await this.resolveConversation(modelId);
+      let result;
+      try {
+        result = await this.runGeminiNativeJob(body, conversationId);
+      } catch (err) {
+        if (!/conversation not found|404/i.test(String(err.message || err))) throw err;
+        this.conversationCache = null;
+        const fresh = await this.resolveConversation(modelId);
+        result = await this.runGeminiNativeJob(body, fresh);
+      }
+      const out = result.chunks.map(p => p?.text ?? "").join("");
+      this.lastChatLatencyMs = Date.now() - started;
+      return jsonOpenAI(request, 200, {
+        id, object: "chat.completion", created, model: modelId,
+        choices: [{ index: 0, message: { role: "assistant", content: out }, finish_reason: result.finishReason }],
+        usage: {
+          prompt_tokens: Math.ceil(JSON.stringify(body).length / 4),
+          completion_tokens: Math.ceil(out.length / 4),
+          total_tokens: Math.ceil((JSON.stringify(body).length + out.length) / 4),
+        },
+        latency_ms: this.lastChatLatencyMs,
+        ...(result.groundingMetadata && { grounding_metadata: result.groundingMetadata }),
+      });
+    } catch (err) {
+      return jsonOpenAI(request, 502, {
+        error: { message: String(err.message || err), code: "upstream_error" },
+      });
+    }
+  }
+
+  async runGeminiNativeJob(body, conversationId, onChunk = null) {
+    if (!this.isExtConnected) {
+      throw new Error("no extension connected to the cloud hub");
+    }
+    const jobId = crypto.randomUUID();
+    const timeoutMs = 120000;
+    const job = { chunks: [], resolve: null, reject: null, timer: null, onChunk, kind: "gemini-native" };
+    const result = new Promise((resolve, reject) => {
+      job.resolve = resolve;
+      job.reject = reject;
+    });
+    this.jobs.set(jobId, job);
+    this.lastJob = { jobId, kind: "gemini-native", at: Date.now() };
+    job.timer = setTimeout(() => {
+      this.jobs.delete(jobId);
+      job.reject(new Error(`timeout waiting for extension (${timeoutMs / 1000}s)`));
+    }, timeoutMs);
+
+    // Send GEMINI_NATIVE_REQUEST to extension with full Gemini-native payload
+    this.extWriter.write(new TextEncoder().encode(
+      this.sseLine("job", { 
+        jobId, 
+        kind: "gemini-native", 
+        payload: body,  // Full Gemini-native request body
+        conversationId 
+      })
+    )).catch(err => {
+      clearTimeout(job.timer);
+      this.jobs.delete(jobId);
+      job.reject(err);
+    });
+    return result;
+  }
+
+  async geminiNativeModels() {
+    // Return Gemini models with grounding capability flags
+    return json({
+      object: "list",
+      data: [
+        { 
+          id: "gemini-3.5-flash-lite", 
+          object: "model", 
+          owned_by: "google", 
+          capabilities: { grounding: true, thinking: false },
+          name: "Gemini 3.5 Flash Lite",
+          free: true,
+          kind: "chat"
+        },
+        { 
+          id: "gemini-3.1-pro-preview", 
+          object: "model", 
+          owned_by: "google", 
+          capabilities: { grounding: true, thinking: true },
+          name: "Gemini 3.1 Pro Preview",
+          free: false,
+          kind: "chat"
+        }
+      ]
+    });
+  }
+
   // ---------- Remote MCP server (JSON-RPC 2.0) ----------
   mcpTools() {
     return [
@@ -694,6 +878,7 @@ export class ExtHub {
       cached_conversation_id: this.conversationCache || null,
       mcp_endpoint: `https://${host}/mcp`,
       openai_endpoint: `https://${host}/v1`,
+      gemini_native_endpoint: `https://${host}/v1/gemini`,
       clients: "Hermes Agent (Mac), any OpenAI-compatible client, any MCP client",
     });
   }
@@ -759,8 +944,25 @@ export class ExtHub {
     if ((p === "v1/chat/completions" || p === "chat/completions") && request.method === "POST") {
       return this.chatCompletions(request);
     }
+    // Gemini-native endpoints (feature-gated)
+    if (p === "v1/gemini/models" && request.method === "GET") {
+      if (!this.isGeminiNativeEnabled()) {
+        return json({ error: { message: "Gemini-native endpoints disabled", code: "disabled" } }, 404);
+      }
+      return this.geminiNativeModels();
+    }
+    if ((p === "v1/gemini/chat/completions" || p === "gemini/chat/completions") && request.method === "POST") {
+      if (!this.isGeminiNativeEnabled()) {
+        return json({ error: { message: "Gemini-native endpoints disabled", code: "disabled" } }, 404);
+      }
+      return this.geminiNativeChatCompletions(request);
+    }
 
     return json({ error: { message: `no route for ${request.method} ${p}`, code: "not_found" } }, 404);
+  }
+
+  isGeminiNativeEnabled() {
+    return this.env?.GEMINI_NATIVE_ENABLED === "true" || (this.env?.GEMINI_NATIVE_ENABLED === true);
   }
 }
 

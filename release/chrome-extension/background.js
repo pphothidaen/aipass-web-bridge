@@ -250,7 +250,7 @@ async function retryAfterCloudflare(jobId, message) {
   if (!record || record.cloudflareRetried || !isCloudflareForbidden(message)) return false;
   // A page job has no content yet when the HTTP request itself was denied, so
   // this is the one case where replaying the POST is safe enough to automate.
-  if (!['chat', 'create', 'loader'].includes(record.job.kind)) return false;
+  if (!['chat', 'create', 'loader', 'gemini-native'].includes(record.job.kind)) return false;
   record.cloudflareRetried = true;
 
   try {
@@ -688,6 +688,38 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       postBridge(p);
     }
     return;
+  }
+
+  // ─── Gemini-Native Request Handler ──────────────────────────────────────
+  // Forwards Gemini-native requests (with grounding, thinking_config, etc.) 
+  // directly to de.aipass.net without OpenAI translation
+  if (msg?.type === 'GEMINI_NATIVE_REQUEST') {
+    const payload = msg.payload;
+    (async () => {
+      try {
+        const tab = await findChatTab();
+        if (!tab) {
+          sendResponse({ success: false, error: 'no de.aipass.net tab is open' });
+          return;
+        }
+        await ensureContentScript(tab);
+        
+        // Send to content script with GEMINI_NATIVE_REQUEST type
+        await chrome.tabs.sendMessage(tab.id, { 
+          type: 'GEMINI_NATIVE_REQUEST', 
+          payload,
+          jobId: crypto.randomUUID() 
+        });
+        
+        // Response will come via 'from-page' with kind 'done' or 'chunk'
+        // We'll handle the response in the from-page listener
+        // For now, return success - the actual response goes through the bridge
+        sendResponse({ success: true, message: 'forwarded to de.aipass.net' });
+      } catch (err) {
+        sendResponse({ success: false, error: String(err.message || err) });
+      }
+    })();
+    return true; // async response
   }
 
   // ─── Lease State Machine Messages ──────────────────────────────────────
