@@ -302,3 +302,4 @@ Special thanks to the author for pioneering the production-grade Edge AI gateway
 ## 📄 License
 
 MIT License — Released for open research, learning, and enterprise AI enablement.
+# deploy trigger
