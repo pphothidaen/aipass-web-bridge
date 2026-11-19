@@ -67,38 +67,40 @@
   // ─── Gemini-Native Request Handler (chrome.runtime.onMessage) ────────────
   // Receives GEMINI_NATIVE_REQUEST from background.js and forwards directly
   // to de.aipass.net's Gemini API (native format, no OpenAI translation)
-  chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
-    if (msg?.type === 'GEMINI_NATIVE_REQUEST') {
-      const payload = msg.payload;
-      const jobId = msg.jobId || crypto.randomUUID();
-      
-      (async () => {
-        try {
-          // Call de.aipass.net Gemini API directly (native format)
-          const res = await fetch('/api/gemini/chat', {
-            method: 'POST',
-            credentials: 'include',
-            headers: { 'content-type': 'application/json', accept: '*/*' },
-            body: JSON.stringify(payload), // Full Gemini-native body: model, messages, tools, thinking_config, etc.
-          });
-          
-          if (!res.ok) {
-            const errText = await res.text().catch(() => '');
-            throw new Error(`de.aipass.net Gemini API returned ${res.status}: ${errText}`);
+  if (typeof chrome !== 'undefined' && chrome.runtime?.onMessage) {
+    chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+      if (msg?.type === 'GEMINI_NATIVE_REQUEST') {
+        const payload = msg.payload;
+        const jobId = msg.jobId || crypto.randomUUID();
+        
+        (async () => {
+          try {
+            // Call de.aipass.net Gemini API directly (native format)
+            const res = await fetch('/api/gemini/chat', {
+              method: 'POST',
+              credentials: 'include',
+              headers: { 'content-type': 'application/json', accept: '*/*' },
+              body: JSON.stringify(payload), // Full Gemini-native body: model, messages, tools, thinking_config, etc.
+            });
+            
+            if (!res.ok) {
+              const errText = await res.text().catch(() => '');
+              throw new Error(`de.aipass.net Gemini API returned ${res.status}: ${errText}`);
+            }
+            
+            const data = await res.json();
+            
+            // Return the full response (including grounding_metadata if present)
+            sendResponse({ success: true, data, jobId });
+          } catch (err) {
+            sendResponse({ success: false, error: String(err.message || err), jobId });
           }
-          
-          const data = await res.json();
-          
-          // Return the full response (including grounding_metadata if present)
-          sendResponse({ success: true, data, jobId });
-        } catch (err) {
-          sendResponse({ success: false, error: String(err.message || err), jobId });
-        }
-      })();
-      
-      return true; // async response
-    }
-  });
+        })();
+        
+        return true; // async response
+      }
+    });
+  }
 
   function validateSessionEpoch(job) {
     if (job?.sessionEpoch != null && job.sessionEpoch !== currentSessionEpoch) {
@@ -1011,6 +1013,14 @@
 
   let cachedDiscoveredModels = [];
 
+  const getPageHost = () => {
+    try {
+      return (window?.location?.hostname || window?.location?.origin || window?.location?.href || '');
+    } catch {
+      return '';
+    }
+  };
+
   async function runVertexSearch(job) {
     if (!validateSessionEpoch(job)) return;
     recordEvidence(job.jobId, job.modelId);
@@ -1029,7 +1039,7 @@
     };
 
     try {
-      push('status', `[gemini-enterprise] Connected to Vertex AI Search (${window.location.hostname})...`);
+      push('status', `[gemini-enterprise] Connected to Vertex AI Search (${getPageHost()})...`);
       const text = job.text || (job.messages && job.messages[0]?.parts?.[0]?.text) || '';
 
       const inputSelectors = [
@@ -1046,11 +1056,13 @@
       ];
       
       let inputEl = null;
-      for (const sel of inputSelectors) {
-        const el = document.querySelector(sel);
-        if (el && el.offsetParent !== null) {
-          inputEl = el;
-          break;
+      if (typeof document !== 'undefined') {
+        for (const sel of inputSelectors) {
+          const el = document.querySelector(sel);
+          if (el && el.offsetParent !== null) {
+            inputEl = el;
+            break;
+          }
         }
       }
 
@@ -1090,7 +1102,7 @@
 
         push('status', `[gemini-enterprise] Prompt submitted. Monitoring answer...`);
         await new Promise((r) => setTimeout(r, 600));
-        push('text', `[Gemini Enterprise response received via ${window.location.hostname}]`);
+        push('text', `[Gemini Enterprise response received via ${getPageHost()}]`);
         
         reply({
           jobId: job.jobId,
@@ -1099,7 +1111,7 @@
           sessionEpoch: currentSessionEpoch,
         });
       } else {
-        push('status', `[gemini-enterprise] Ready on ${window.location.hostname}. Tab verified active.`);
+        push('status', `[gemini-enterprise] Ready on ${getPageHost()}. Tab verified active.`);
         reply({
           jobId: job.jobId,
           kind: 'done',
@@ -1122,7 +1134,7 @@
   }
 
   async function discoverModels() {
-    if (window.location.hostname.includes('cloud.google') || window.location.hostname.includes('vertexaisearch')) {
+    if (getPageHost().includes('cloud.google') || getPageHost().includes('vertexaisearch')) {
       const vertexModels = [
         { id: 'gemini-enterprise-vertex', displayName: 'Gemini Enterprise (Vertex AI Search)', ready: true, selectable: true, isDefault: true, isFreeCredit: true, kind: 'chat' },
         { id: 'gemini-3.5-flash-lite', displayName: 'Gemini 3.5 Flash Lite (Vertex)', ready: true, selectable: true, isDefault: false, isFreeCredit: true, kind: 'chat' },
@@ -1236,7 +1248,7 @@
         window.postMessage({ [TAG]: 'res', type: 'STREAM_ERROR', requestId: job.requestId || job.jobId, error: 'Session epoch mismatch', code: 'session_epoch_mismatch', sessionEpoch: currentSessionEpoch }, '*');
         return;
       }
-      const isVertex = window.location.hostname.includes('cloud.google') || window.location.hostname.includes('vertexaisearch');
+      const isVertex = getPageHost().includes('cloud.google') || getPageHost().includes('vertexaisearch');
       const fn = isVertex ? runVertexSearch
         : msg.job.kind === 'loader' ? runLoader
         : msg.job.kind === 'create' ? runCreate
