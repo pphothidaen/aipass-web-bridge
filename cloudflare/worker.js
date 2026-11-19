@@ -453,7 +453,7 @@ export class ExtHub {
         } catch (err) {
           // Conversation expired mid-session (temporary chats age out): drop the
           // cached id, mint a fresh one, retry the chat exactly once.
-          if (/conversation not found|404/i.test(String(err.message || err))) {
+          if (/conversation not found|404|403|deleted|unauthorized/i.test(String(err.message || err))) {
             try {
               this.conversationCache = null;
               const conversationId = await this.resolveConversation(modelId);
@@ -490,7 +490,7 @@ export class ExtHub {
         chat = await this.runChatJob(text, modelId, conversationId, null, body.attachments);
       } catch (err) {
         // Temporary conversation expired → recreate once and retry.
-        if (!/conversation not found|404/i.test(String(err.message || err))) throw err;
+        if (!/conversation not found|404|403|deleted|unauthorized/i.test(String(err.message || err))) throw err;
         this.conversationCache = null;
         const fresh = await this.resolveConversation(modelId);
         chat = await this.runChatJob(text, modelId, fresh, null, body.attachments);
