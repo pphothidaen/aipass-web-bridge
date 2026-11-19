@@ -20,7 +20,7 @@ jobs:
           node --check cloudflare/worker.js
           node --check release/chrome-extension/background.js
           node --check release/chrome-extension/popup.js
-          python3 -m py_compile secretary.py
+          python3 -m py_compile secretary.py packages/secretary.py packages/bridge_resilience.py
       - name: Note — packages/core is a git submodule (own history, public fork)
         run: echo "packages/core is checked out via submodule; CI validates worker, release copy, and the nested test suites."
       - name: Live smoke gate (prod must answer JSON, not Hello World)
@@ -71,6 +71,8 @@ jobs:
         run: node --test packages/core/aipass-bridge/test/bridge.test.mjs packages/core/aipass-bridge/test/chat.test.mjs packages/core/aipass-bridge/test/page.test.mjs
       - name: SSRF / redirect guard suite
         run: node --test packages/core/aipass-bridge/test/ssrf.test.mjs
+      - name: Python resilience test suite
+        run: python3 -m unittest tests/test_bridge_resilience.py
 
   deploy:
     needs: [smoke, blueteam, redteam]

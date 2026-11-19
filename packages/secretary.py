@@ -152,6 +152,15 @@ def build_consult_message(request: str, context: Dict[str, Any]) -> str:
     )
 
 
+try:
+    from packages.bridge_resilience import enforce
+except ImportError:
+    try:
+        from bridge_resilience import enforce
+    except ImportError:
+        enforce = None
+
+
 def call_consultant(request: str, context: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     payload = {
         "model": CONSULTANT_MODEL,
@@ -163,8 +172,15 @@ def call_consultant(request: str, context: Dict[str, Any]) -> Optional[Dict[str,
         "temperature": 0.3,
     }
     try:
-        resp = requests.post(f"{BRIDGE_URL}/v1/chat/completions", json=payload, timeout=45)
-        resp.raise_for_status()
+        if enforce is not None:
+            def _post():
+                resp = requests.post(f"{BRIDGE_URL}/v1/chat/completions", json=payload, timeout=45)
+                resp.raise_for_status()
+                return resp
+            resp = enforce("aipass-bridge", _post, timeout_s=45.0, max_retries=2)
+        else:
+            resp = requests.post(f"{BRIDGE_URL}/v1/chat/completions", json=payload, timeout=45)
+            resp.raise_for_status()
         raw = resp.json()["choices"][0]["message"]["content"]
         if "```" in raw:
             raw = raw.split("```")[1]

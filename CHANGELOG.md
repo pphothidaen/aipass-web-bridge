@@ -1,3 +1,17 @@
+## [0.7.1] - 2026-11-19
+
+### Added
+- **Bridge Resilience Enforcement Module (`packages/bridge_resilience.py`)**:
+  - Provides circuit breaker (`CircuitBreaker`) state machine (closed → open → half_open) with fail-fast protections.
+  - Implements exponential backoff with retry configuration (`RetryConfig`), skipping unretryable errors (401, 404, 409, 422).
+  - Supplies sync and async execution decorators (`@with_bridge_resilience`) and direct call wrappers (`enforce`, `enforce_async`).
+  - Integrated into `packages/secretary.py` (`call_consultant`) to protect outbound bridge calls against transient network timeouts and failures.
+  - Added unit test suite `tests/test_bridge_resilience.py` (8 test cases) testing circuit breaker lifecycle, retry logic, and sync/async wrappers.
+  - Added syntax verification and test execution in `.github/workflows/ci.yml` smoke and redteam jobs.
+
+### Changed
+- **Version Bumping**: Synchronized version to `0.7.1` across `package.json`, `packages/core/.../manifest.json`, and `release/chrome-extension/manifest.json`.
+
 ## [0.7.0] - 2026-11-19
 
 ### Added
