@@ -1,5 +1,6 @@
-## [0.1.30]
+## [0.1.30] — 2026-11-19
 
+- Synchronized with web bridge `v0.7.4` (Multi-Provider Tab Isolation between AiPASS & Vertex, Smart Provider-Aware Routing, and Popup UI Deduplication).
 - Workspace/project renamed `aipass-dev-suite` → `aipass-web-bridge`; version
   fallbacks synchronized with `package.json` (no functional change to the
   extension host code).

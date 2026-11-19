@@ -190,6 +190,40 @@ const siteModels = {
   ],
 };
 
+function isVertexUrl(url) {
+  if (!url) return false;
+  return /vertexaisearch\.cloud\.google|\.cloud\.google/i.test(url);
+}
+
+function isAipassUrl(url) {
+  if (!url) return false;
+  return /aipass\.net/i.test(url);
+}
+
+function isVertexModel(modelId) {
+  if (!modelId) return false;
+  const mid = String(modelId).toLowerCase();
+  return mid.includes('vertex') || mid.includes('enterprise') || mid.startsWith('vertex/') || mid.startsWith('vertex:');
+}
+
+function getProviderForModel(modelId) {
+  if (!modelId) return 'aipass';
+  if (isVertexModel(modelId)) return 'vertex';
+  const mid = String(modelId).toLowerCase();
+  const inVertex = (siteModels.vertex || []).some((m) => m.id.toLowerCase() === mid);
+  const inAipass = (siteModels.aipass || []).some((m) => m.id.toLowerCase() === mid);
+  if (inVertex && !inAipass) return 'vertex';
+  return 'aipass';
+}
+
+async function getDefaultModel() {
+  try {
+    const saved = await chrome.storage.local.get(['defaultModel']);
+    if (saved?.defaultModel) return saved.defaultModel;
+  } catch {}
+  return 'gemini-3.5-flash-lite';
+}
+
 async function getPagesStatus() {
   const [aipassTabs, vertexTabs] = await Promise.all([
     chrome.tabs.query({ url: ['https://*.aipass.net/*', 'https://aipass.net/*'] }).catch(() => []),
@@ -223,29 +257,42 @@ async function getPagesStatus() {
   };
 }
 
-async function findChatTab(forModel = null) {
-  const isVertex = Boolean(
-    forModel?.includes('vertex') ||
-    forModel?.includes('enterprise') ||
-    forModel === 'gemini-enterprise-vertex'
-  );
+async function findAipassTab() {
+  const leaderTabId = tabCoordinator.getLeaderTabId();
+  if (leaderTabId != null) {
+    try {
+      const tab = await chrome.tabs.get(leaderTabId);
+      if (tab && !tab.discarded && isAipassUrl(tab.url)) return tab;
+    } catch {
+      tabCoordinator.removeTab(leaderTabId);
+    }
+  }
   const tabs = await chrome.tabs.query({
-    url: [
-      'https://*.aipass.net/*',
-      'https://aipass.net/*',
-      'https://vertexaisearch.cloud.google/*',
-      'https://*.cloud.google/*',
-    ],
-  });
+    url: ['https://*.aipass.net/*', 'https://aipass.net/*'],
+  }).catch(() => []);
   if (!tabs.length) return null;
   const live = tabs.filter((t) => !t.discarded && t.status !== 'unloaded');
   const pool = live.length ? live : tabs;
-  if (isVertex) {
-    const vTab = pool.find((t) => t.url?.includes('vertexaisearch') || t.url?.includes('cloud.google'));
-    if (vTab) return vTab;
+  return pool.find((t) => t.url?.includes('/chat')) ?? pool[0];
+}
+
+async function findVertexTab() {
+  const tabs = await chrome.tabs.query({
+    url: ['https://vertexaisearch.cloud.google/*', 'https://*.cloud.google/*'],
+  }).catch(() => []);
+  if (!tabs.length) return null;
+  const live = tabs.filter((t) => !t.discarded && t.status !== 'unloaded');
+  const pool = live.length ? live : tabs;
+  return pool.find((t) => t.url?.includes('vertexaisearch') || t.url?.includes('cloud.google')) ?? pool[0];
+}
+
+async function findChatTab(forModel = null) {
+  const targetModel = forModel || (await getDefaultModel());
+  const provider = getProviderForModel(targetModel);
+  if (provider === 'vertex') {
+    return (await findVertexTab()) || (await findAipassTab());
   }
-  // Prefer a tab sitting on a chat route or vertexai search.
-  return pool.find((t) => t.url?.includes('/chat') || t.url?.includes('vertexaisearch')) ?? pool[0];
+  return (await findAipassTab()) || (await findVertexTab());
 }
 
 function waitForComplete(tabId, timeoutMs = 15_000) {
@@ -279,7 +326,13 @@ async function ensureContentScript(tab) {
 }
 
 async function handleJob(job) {
+  let targetModel = job.modelId || job.model;
+  if (!targetModel) {
+    targetModel = await getDefaultModel();
+  }
+  const provider = getProviderForModel(targetModel);
   const isVertexJob = Boolean(
+    provider === 'vertex' ||
     job.modelId?.includes('vertex') ||
     job.modelId?.includes('enterprise') ||
     job.modelId === 'gemini-enterprise-vertex'
@@ -287,27 +340,20 @@ async function handleJob(job) {
 
   let tab = null;
   if (isVertexJob) {
-    tab = await findChatTab(job.modelId);
+    tab = (await findVertexTab()) || (await findChatTab(job.modelId));
   } else {
-    // Prefer the leader tab from coordinator
-    const leaderTabId = tabCoordinator.getLeaderTabId();
-    if (leaderTabId) {
-      try {
-        tab = await chrome.tabs.get(leaderTabId);
-      } catch {
-        tabCoordinator.removeTab(leaderTabId);
-        tab = await findChatTab();
-      }
-    } else {
-      tab = await findChatTab();
-    }
+    tab = await findAipassTab();
   }
+
   if (!tab) {
-    await post('/ext/error', { jobId: job.jobId, message: 'no de.aipass.net or Gemini Enterprise tab is open' });
+    const errorMsg = provider === 'vertex'
+      ? 'no Gemini Enterprise (Vertex AI Search) tab is open (please open https://vertexaisearch.cloud.google/)'
+      : 'no de.aipass.net tab is open';
+    await post('/ext/error', { jobId: job.jobId, message: errorMsg });
     return;
   }
   post('/ext/tab', { tabId: tab.id, url: tab.url, jobId: job.jobId, kind: job.kind });
-  jobTabs.set(job.jobId, { tabId: tab.id, job, cloudflareRetried: false });
+  jobTabs.set(job.jobId, { tabId: tab.id, job, provider, cloudflareRetried: false });
   try {
     await ensureContentScript(tab);
     await chrome.tabs.sendMessage(tab.id, { type: 'run', job });
@@ -420,16 +466,20 @@ async function connect() {
 async function handleBridgeEvent(name, data) {
   // Protocol v2 messages from BridgeDO
   if (name === 'EXECUTE_REQUEST' || name === 'PREPARE_MODEL' || name === 'CANCEL_REQUEST') {
-    const leaderTabId = tabCoordinator.getLeaderTabId();
+    const targetModel = data.model || data.modelId || (await getDefaultModel());
+    const provider = getProviderForModel(targetModel);
     let tab = null;
-    if (leaderTabId != null) {
-      try { tab = await chrome.tabs.get(leaderTabId); }
-      catch { tabCoordinator.removeTab(leaderTabId); }
+    if (provider === 'vertex') {
+      tab = await findVertexTab();
+    } else {
+      tab = await findAipassTab();
     }
-    if (!tab) tab = await findChatTab();
     if (!tab) {
       // Report error back to bridge channel
-      await postBridge({ type: 'STREAM_ERROR', requestId: data.requestId, error: 'no de.aipass.net tab is open', code: 'no_tab' });
+      const errorMsg = provider === 'vertex'
+        ? 'no Gemini Enterprise (Vertex AI Search) tab is open'
+        : 'no de.aipass.net tab is open';
+      await postBridge({ type: 'STREAM_ERROR', requestId: data.requestId, error: errorMsg, code: 'no_tab' });
       return;
     }
     try {
@@ -445,7 +495,7 @@ async function handleBridgeEvent(name, data) {
     if (leaderTabId != null) {
       try { tab = await chrome.tabs.get(leaderTabId); } catch { /* failover below */ }
     }
-    if (!tab) tab = await findChatTab();
+    if (!tab) tab = await findAipassTab();
     await tabCoordinator.setSessionEpoch(data.sessionEpoch, false);
     if (tab) {
       try {
@@ -522,8 +572,12 @@ async function connectBridge() {
 // TTL lease leader election with state machine:
 //   ACQUIRE_LEASE → HEARTBEAT (loop) → YIELD | REVOKED
 // Single active leader at any time. Lease persisted to chrome.storage.session.
+// STRICT ISOLATION: TabCoordinator only manages de.aipass.net tabs to prevent Split-Brain (RED-1).
+// Vertex AI Search tabs are tracked separately in vertexPorts and NEVER participate in lease election.
+const vertexPorts = new Map(); // tabId -> port for vertexaisearch tabs
+
 const tabCoordinator = {
-  ports: new Map(),   // tabId -> port
+  ports: new Map(),   // tabId -> port (strictly de.aipass.net tabs only)
   leaderId: null,
   leaseExpiry: 0,
   sessionEpoch: 0,
@@ -535,6 +589,10 @@ const tabCoordinator = {
   // lease expired, or the same tab re-acquiring.
   async acquireLease(tabId) {
     try {
+      const port = this.ports.get(tabId);
+      const senderUrl = port?.sender?.tab?.url || port?.sender?.url || '';
+      if (isVertexUrl(senderUrl)) return false;
+
       const data = await chrome.storage.session.get(['leaderTabId', 'leaseExpiry']);
       const now = Date.now();
       const noLeader = !data.leaderTabId;
@@ -643,6 +701,10 @@ const tabCoordinator = {
   // ─── Port Management ───────────────────────────────────────────────────
 
   addTab(tabId, port) {
+    const senderUrl = port.sender?.tab?.url || port.sender?.url || '';
+    if (isVertexUrl(senderUrl) || port.name === 'vertex-tab') {
+      return; // Isolated: Vertex tabs never participate in AiPASS tab coordinator
+    }
     this.ports.set(tabId, port);
     // Attempt to acquire lease (first-tab-wins if no active lease)
     this.acquireLease(tabId);
@@ -704,9 +766,16 @@ const tabCoordinator = {
 // A content script and the offscreen document each hold one of these open, which
 // is what stops Chrome evicting the worker.
 chrome.runtime.onConnect.addListener((port) => {
-  if (port.name !== 'keepalive' && port.name !== 'offscreen-keepalive' && port.name !== 'aipass-tab') return;
-  // Leader election for content script keepalive ports
-  if (port.name === 'keepalive' || port.name === 'aipass-tab') {
+  if (port.name !== 'keepalive' && port.name !== 'offscreen-keepalive' && port.name !== 'aipass-tab' && port.name !== 'vertex-tab') return;
+  const senderUrl = port.sender?.tab?.url || port.sender?.url || '';
+  const isVertex = port.name === 'vertex-tab' || isVertexUrl(senderUrl);
+
+  if (isVertex) {
+    const tabId = port.sender?.tab?.id;
+    if (tabId != null) {
+      vertexPorts.set(tabId, port);
+    }
+  } else if (port.name === 'keepalive' || port.name === 'aipass-tab') {
     const tabId = port.sender?.tab?.id;
     if (tabId != null) {
       if (port.name === 'aipass-tab') {
@@ -730,7 +799,11 @@ chrome.runtime.onConnect.addListener((port) => {
   port.onDisconnect.addListener(() => {
     void chrome.runtime.lastError;
     if (port.name === 'offscreen-keepalive') ensureOffscreenDocument();
-    if (port.name === 'aipass-tab' && port.sender?.tab?.id != null) {
+    if (isVertex || port.name === 'vertex-tab') {
+      if (port.sender?.tab?.id != null) {
+        vertexPorts.delete(port.sender.tab.id);
+      }
+    } else if (port.name === 'aipass-tab' && port.sender?.tab?.id != null) {
       tabCoordinator.removeTab(port.sender.tab.id);
     }
   });
@@ -738,6 +811,7 @@ chrome.runtime.onConnect.addListener((port) => {
 
 chrome.tabs.onRemoved.addListener((tabId) => {
   tabCoordinator.removeTab(tabId);
+  vertexPorts.delete(tabId);
 });
 
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
@@ -809,7 +883,13 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 
   // ─── Lease State Machine Messages ──────────────────────────────────────
   // Content scripts use these to participate in leader election.
+  // STRICT ISOLATION: Vertex tabs do NOT participate in de.aipass.net leader election.
   if (msg?.type === 'acquire_lease') {
+    const senderUrl = _sender?.tab?.url || _sender?.url || '';
+    if (isVertexUrl(senderUrl)) {
+      sendResponse({ ok: false, reason: 'vertex_isolated' });
+      return true;
+    }
     const tabId = _sender?.tab?.id;
     if (tabId != null) {
       tabCoordinator.acquireLease(tabId).then((ok) => {
@@ -822,6 +902,11 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   }
 
   if (msg?.type === 'heartbeat') {
+    const senderUrl = _sender?.tab?.url || _sender?.url || '';
+    if (isVertexUrl(senderUrl)) {
+      sendResponse({ ok: false, reason: 'vertex_isolated' });
+      return true;
+    }
     const tabId = _sender?.tab?.id;
     if (tabId != null) {
       tabCoordinator.heartbeat(tabId).then((ok) => {
@@ -834,6 +919,11 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   }
 
   if (msg?.type === 'yield_leadership') {
+    const senderUrl = _sender?.tab?.url || _sender?.url || '';
+    if (isVertexUrl(senderUrl)) {
+      sendResponse({ ok: true, reason: 'vertex_isolated' });
+      return true;
+    }
     const tabId = _sender?.tab?.id;
     if (tabId != null) {
       tabCoordinator.yieldLeadership(tabId);
@@ -843,6 +933,17 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   }
 
   if (msg?.type === 'get_lease_state') {
+    const senderUrl = _sender?.tab?.url || _sender?.url || '';
+    if (isVertexUrl(senderUrl)) {
+      sendResponse({
+        leaderId: null,
+        leaseExpiry: 0,
+        sessionEpoch: 0,
+        isLeader: false,
+        isolated: true,
+      });
+      return true;
+    }
     sendResponse({
       leaderId: tabCoordinator.leaderId,
       leaseExpiry: tabCoordinator.leaseExpiry,

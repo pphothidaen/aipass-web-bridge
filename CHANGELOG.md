@@ -1,3 +1,25 @@
+## [0.7.4] - 2026-11-19
+
+### Added
+- **Multi-Provider Tab Isolation & Smart Routing**:
+  - `background.js`: Strictly isolated tab management between `https://de.aipass.net` and `https://vertexaisearch.cloud.google/`.
+  - Vertex tabs connect with dedicated port `vertex-tab` and are tracked in `vertexPorts`; they never participate in, acquire, or demote the Leader lease in `tabCoordinator`, fully preserving RED-1 Split-Brain prevention.
+  - Smart Provider-Aware Routing: Requests targeting Vertex/Gemini Enterprise models dispatch directly to Vertex tabs via `findVertexTab()`, while AiPASS models dispatch to AiPASS tabs via `findAipassTab()`.
+  - When no model is specified in a request, the system detects the provider of the active `defaultModel` and routes the job to that provider's tab automatically.
+  - Concurrent in-flight jobs across different provider tabs execute concurrently without cross-tab blocking.
+- **Cloudflare Worker Dynamic Config Endpoint**:
+  - `cloudflare/worker.js`: Added `POST /config` handler to `ExtHub.fetch()` allowing clients and extensions to update `defaultModel` dynamically and reset conversation caches.
+
+### Changed
+- **Popup UI Deduplication**:
+  - `popup.html`: Removed redundant `<select id="model">` dropdown at the bottom of the extension popup.
+  - `popup.html` & `popup.js`: Integrated Default Model management directly into the "Usable Models" card:
+    - Added Default Model banner (`Default: <model-name>`) in the Usable Models card header.
+    - Added highlight badge `★ Default` on the card of the currently selected default model.
+    - Clicking any model card immediately sends `POST /config` with bridge auth headers to switch default model, updates local storage, moves the `★ Default` badge, and triggers a confirmation toast.
+    - Retained all filter pills (All, Free, AiPASS, Vertex).
+- **Versioning**: Bumped version to `0.7.4` across `package.json`, `packages/core/.../manifest.json`, `release/chrome-extension/manifest.json`, and packaged release zip `release/aipass-bridge-chrome-v0.7.4.zip`.
+
 ## [0.7.3] - 2026-11-19
 
 ### Added

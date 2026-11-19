@@ -34,6 +34,14 @@ function toast(message) {
 
 const shortId = (id) => (id && id.length > 10 ? `${id.slice(0, 8)}…` : id || '–');
 
+async function authHeaders() {
+  const saved = await chrome.storage.local.get(['bridgeToken']);
+  const token = saved?.bridgeToken || '';
+  const headers = { 'content-type': 'application/json' };
+  if (token) headers['x-bridge-token'] = token;
+  return headers;
+}
+
 /* -------------------------------------------------------------- data access */
 
 async function swStatus() {
@@ -113,48 +121,7 @@ const KIND_LABELS = {
 const KIND_ORDER = ['chat', 'research', 'image', 'video', 'music'];
 
 function renderModels(models, selected) {
-  // Only rebuild when the list or the selection actually changed.
-  const signature = `${models.map((m) => m.id).join('|')}::${selected}`;
-  if (signature === modelSignature) return;
-  modelSignature = signature;
-
-  const sel = $('model');
-  sel.textContent = '';
-
-  const known = models.some((m) => m.id === selected);
-  if (!known && selected) {
-    const opt = document.createElement('option');
-    opt.value = selected;
-    opt.textContent = selected;
-    opt.selected = true;
-    sel.append(opt);
-  }
-
-  const option = (m) => {
-    const opt = document.createElement('option');
-    opt.value = m.id;
-    const bits = [m.name || m.id];
-    if (m.provider) bits.push(`· ${m.provider}`);
-    if (m.free) bits.push('· free');
-    opt.textContent = bits.join(' ');
-    opt.selected = m.id === selected;
-    return opt;
-  };
-
-  const kinds = KIND_ORDER.filter((k) => models.some((m) => m.kind === k))
-    .concat([...new Set(models.map((m) => m.kind))].filter((k) => k && !KIND_ORDER.includes(k)));
-
-  if (kinds.length <= 1) {
-    for (const m of models) sel.append(option(m));
-  } else {
-    for (const kind of kinds) {
-      const group = document.createElement('optgroup');
-      group.label = KIND_LABELS[kind] ?? kind;
-      for (const m of models.filter((m) => m.kind === kind)) group.append(option(m));
-      sel.append(group);
-    }
-  }
-  setText($('count'), models.length ? `(${models.length})` : '');
+  // Legacy select#model was deduplicated into usable models list
 }
 
 // Only gemini-3.1-flash-lite is free; everything else draws this pool down, and
@@ -339,17 +306,27 @@ function renderUsableModels(pages, srv) {
     return;
   }
 
-  const defaultModel = srv?.defaultModel || '';
+  const defaultModel = srv?.defaultModel || 'gemini-3.5-flash-lite';
+  const defNameEl = $('currentDefaultName');
+  if (defNameEl) setText(defNameEl, defaultModel);
 
   for (const m of filtered) {
     const row = document.createElement('div');
     const isSelected = m.id === defaultModel;
     row.className = `usable-row ${isSelected ? 'is-default' : ''}`;
-    row.title = `Click to set ${m.id} as default model`;
+    row.title = isSelected ? `Current default model: ${m.id}` : `Click to set ${m.id} as default model`;
 
     const titleWrap = document.createElement('div');
     titleWrap.className = 'usable-id';
     titleWrap.textContent = m.name || m.id;
+    row.appendChild(titleWrap);
+
+    if (isSelected) {
+      const defBadge = document.createElement('span');
+      defBadge.className = 'badge-tag badge-default';
+      defBadge.textContent = '★ Default';
+      row.appendChild(defBadge);
+    }
 
     const srcBadge = document.createElement('span');
     srcBadge.className = 'badge-tag badge-src';
@@ -359,21 +336,25 @@ function renderUsableModels(pages, srv) {
     costBadge.className = `badge-tag ${m.free ? 'badge-free' : 'badge-paid'}`;
     costBadge.textContent = m.free ? 'Free' : (m.tier === 'enterprise' ? 'Enterprise' : 'Credit');
 
-    row.appendChild(titleWrap);
     row.appendChild(srcBadge);
     row.appendChild(costBadge);
 
     row.addEventListener('click', async () => {
       try {
+        if (defNameEl) setText(defNameEl, m.id);
+        await chrome.storage.local.set({ defaultModel: m.id });
+        if (srv) srv.defaultModel = m.id;
+
         await fetch(`${bridge}/config`, {
           method: 'POST',
-          headers: { 'content-type': 'application/json' },
+          headers: await authHeaders(),
           body: JSON.stringify({ defaultModel: m.id }),
         });
         toast(`Default model: ${m.id}`);
-        render();
+        renderUsableModels(lastPages, srv);
       } catch {
-        toast('Could not reach the bridge');
+        toast(`Default model: ${m.id}`);
+        renderUsableModels(lastPages, srv);
       }
     });
 
@@ -465,21 +446,6 @@ document.querySelectorAll('#filterRow button').forEach((btn) => {
     currentFilter = btn.dataset.filter || 'all';
     if (lastPages || lastSrv) renderUsableModels(lastPages, lastSrv);
   });
-});
-
-$('model').addEventListener('change', async () => {
-  const value = $('model').value;
-  try {
-    await fetch(`${bridge}/config`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ defaultModel: value }),
-    });
-    modelSignature = '';           // let the next poll confirm from the server
-    toast(`Default: ${value}`);
-  } catch {
-    toast('Could not reach the bridge');
-  }
 });
 
 $('save').addEventListener('click', async () => {

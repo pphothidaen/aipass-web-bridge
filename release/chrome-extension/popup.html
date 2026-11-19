@@ -288,9 +288,50 @@
   }
   .usable-head {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: space-between;
+    gap: 8px;
     margin-bottom: 6px;
+  }
+  .usable-title-col {
+    flex: 1;
+    min-width: 0;
+  }
+  .default-badge-bar {
+    font-size: 11px;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 1px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .default-badge-bar .default-label {
+    color: var(--faint);
+    font-size: 10.5px;
+    font-weight: 500;
+  }
+  .default-badge-bar .default-name {
+    font-weight: 600;
+    color: var(--accent-ink);
+  }
+  .badge-default {
+    background: var(--accent);
+    color: #fff !important;
+    font-weight: 700;
+    letter-spacing: .02em;
+    padding: 1px 5px;
+    border-radius: 4px;
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+  }
+  @media (prefers-color-scheme: dark) {
+    .default-badge-bar .default-name {
+      color: var(--accent);
+    }
   }
   .filter-row {
     display: flex;
@@ -568,9 +609,15 @@
 
 <section class="usable-card" id="usableSection">
   <div class="usable-head">
-    <div class="lbl" style="margin-bottom:0">
-      <span>Usable Models · โมเดลที่ใช้งานได้จริง</span>
-      <span class="n" id="usableCount">(0)</span>
+    <div class="usable-title-col">
+      <div class="lbl" style="margin-bottom:2px">
+        <span>Usable Models · โมเดลที่ใช้งานได้จริง</span>
+        <span class="n" id="usableCount">(0)</span>
+      </div>
+      <div class="default-badge-bar" id="defaultBadgeBar">
+        <span class="default-label">Default:</span>
+        <span class="mono default-name" id="currentDefaultName">gemini-3.5-flash-lite</span>
+      </div>
     </div>
     <div class="filter-row" id="filterRow">
       <button class="filter-btn active" data-filter="all">All</button>
@@ -592,12 +639,6 @@
     <span class="credit-of" id="creditsOf"></span>
     <span class="credit-reset" id="creditsReset"></span>
   </div>
-</section>
-
-<section>
-  <div class="lbl">Default model <span class="n" id="count"></span></div>
-  <select id="model" aria-label="Default model"></select>
-  <div class="sub">Used only when a client sends no model of its own.</div>
 </section>
 
 <details id="adv">

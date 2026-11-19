@@ -1,11 +1,36 @@
-# HANDOFF — aipass-web-bridge v0.7.0 (Model Registry, Dynamic Fallback & Gemini Enterprise)
+# HANDOFF — aipass-web-bridge v0.7.4 (Multi-Provider Tab Isolation & Popup UI Deduplication)
 
-อัปเดต: 2026-11-19 · Asia/Bangkok · สถานะ: **v0.7.0 รองรับ Endpoint /registry (Public & DO), รองรับ Gemini Enterprise (Vertex AI Search) และ Model Remapping/Fallback สมบูรณ์**
+อัปเดต: 2026-11-19 · Asia/Bangkok · สถานะ: **v0.7.4 แยกแท็บ AiPASS/Vertex เด็ดขาด, Smart Routing, ปรับลดความซ้ำซ้อนใน Popup UI และผ่าน 42/42 tests สมบูรณ์**
 
 > เอกสารหลักของ checkpoint นี้คือ `plan.md` (สถานะ + ลำดับงานที่เหลือ)
 > กฎทอง: จบทุก session ต้องอัปเดต `plan.md` + `handoff.md` ให้เป็นปัจจุบันเสมอ
 
-## ⚡ สิ่งที่ทำเพิ่มใน v0.7.0
+## ⚡ สิ่งที่ทำเพิ่มใน v0.7.4
+
+1. **Popup UI Deduplication (ลดความซ้ำซ้อนใน UI)**:
+   - นำ `<select id="model">` ด้านล่างออกเพื่อไม่ให้ซ้ำซ้อนกับ Usable Models
+   - ผสานการเลือก Default Model เข้ากับกล่อง "Usable Models" โดยสมบูรณ์:
+     - แสดง Default Model ปัจจุบันที่หัวข้อของการ์ด เช่น `Default: gemini-3.5-flash-lite`
+     - ติดป้าย Badge ไฮไลต์ `★ Default` บนการ์ดของโมเดลที่กำลังถูกเลือก
+     - เมื่อคลิกเลือกโมเดลอื่น ระบบส่ง `POST /config` พร้อม bridge auth headers เพื่อเปลี่ยน Default Model ทันที ย้ายป้าย `★ Default` และแสดง toast ยืนยัน
+     - คง Filter Pills (All, Free, AiPASS, Vertex) ครบถ้วน
+2. **Multi-Provider Tab Isolation (แยกแท็บระหว่าง Provider โดยเด็ดขาด)**:
+   - จัดการแท็บของ `de.aipass.net` และ `vertexaisearch.cloud.google` แยกจากกันโดยเด็ดขาดใน `background.js`
+   - แท็บของ Vertex AI Search ใช้ port `vertex-tab` และถูกเก็บใน `vertexPorts` โดยไม่แย่งหรือ demote Leader Lease ของแท็บ `de.aipass.net` (คงระบบ Leader-Standby เฉพาะแท็บ AiPASS ป้องกัน Split-Brain RED-1)
+3. **Smart Provider-Aware Routing**:
+   - หากคำขอระบุโมเดล: ส่งตรงไปยังแท็บของ Provider นั้นๆ ทันที (`findVertexTab` หรือ `findAipassTab`)
+   - หากไม่ได้ระบุโมเดล: ตรวจสอบว่า `defaultModel` ปัจจุบันสังกัด Provider ใด แล้วส่งเข้าแท็บ Provider นั้นอัตโนมัติ
+   - รองรับการประมวลผล Concurrent In-Flight Jobs ระหว่างแท็บคนละ Provider พร้อมกันโดยไม่มีการบล็อกข้ามแท็บ
+4. **Cloudflare Worker Dynamic Config**:
+   - เพิ่ม `POST /config` ใน `ExtHub.fetch()` ใน `cloudflare/worker.js` สำหรับการตั้งค่า `defaultModel` ไดนามิก
+5. **ความสอดคล้องของ Versioning และ Test Suites**:
+   - Version ซิงก์สมบูรณ์ `0.7.4` ข้าม root `package.json`, core manifest, และ release manifest
+   - ผ่าน `npm test` 42/42 tests 100%
+   - ผ่าน Adversarial Chaos Suites (RED-1 ถึง RED-5b) และ SSRF Security Suites 15/15 tests 100%
+   - ผ่าน Python Resilience Unit Tests 8/8 tests 100%
+   - Rebuild `release/aipass-bridge-chrome-built/` และ package `release/aipass-bridge-chrome-v0.7.4.zip` เรียบร้อย
+
+## ⚡ สิ่งที่ทำใน v0.7.0 ก่อนหน้า
 
 1. **เพิ่มและเปิดใช้งาน First-class /registry Endpoints**:
    - `/registry`, `/registry/status`, และ `/registry/models` ใน `cloudflare/worker.js`

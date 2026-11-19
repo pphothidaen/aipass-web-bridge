@@ -1,6 +1,6 @@
 # PLAN — aipass-web-bridge: การปรับแนวคิดและ API Spec ให้ตรงกับ gemini-web-bridge
 
-อัปเดต: 2026-11-19 · เวอร์ชัน 0.7.0 (Model Registry Endpoint, Dynamic Fallback/Remapping, Gemini Enterprise & Vertex AI Search Support)
+อัปเดต: 2026-11-19 · เวอร์ชัน 0.7.4 (Multi-Provider Tab Isolation, Smart Routing, Popup UI Deduplication)
 
 > เอกสารอ้างอิงหลัก (จาก `/Users/kimlenglim/Project/gemini-web-bridge`):
 > `cloudflare-worker/src/index.js` (API spec), `.github/workflows/ci.yml`
@@ -14,21 +14,20 @@
    (`503 secrets_unconfigured`, `422 model_unverified`, `429 queue_full`), และ `/registry` discovery
 2. **Secret & config storage policy** — precedence: **Doppler → Cloudflare → .env → defaults**
 3. **CI/CD blue-team + red-team** — ทุก push/PR ต้องผ่าน security gates ก่อน deploy
+4. **Multi-Provider Tab Isolation & Concurrency** — แยกแท็บ AiPASS (`de.aipass.net`) และ Vertex AI Search (`vertexaisearch.cloud.google`) เด็ดขาด ป้องกัน Split-Brain (RED-1) พร้อมประมวลผลงานขนานข้าม Provider ได้โดยไม่บล็อก
 
 ## สถานะงาน (2026-11-19)
 
-### ✅ เสร็จแล้ว (v0.7.0, `npm test` 36/36 ผ่าน, Adversarial 15/15 ผ่าน)
+### ✅ เสร็จแล้ว (v0.7.4, `npm test` 42/42 ผ่าน, Adversarial 15/15 ผ่าน)
 
 | งาน | หลักฐาน |
 |---|---|
-| Model Registry Endpoint (`/registry`, `/registry/models`, `/registry/status`) | `cloudflare/worker.js` + unit tests ใน `test/test-cf-worker.test.mjs` |
-| Public health discovery ไม่ต้องใช้ Bearer token สำหรับ `/registry*` | `cloudflare/worker.js` edge auth (`isPublicHealth`) |
-| Dynamic default model detection (`gemini-3.5-flash-lite`, `gemini-3.1-flash-lite`) | `ExtHub.refreshModels()` |
-| Model aliasing/remapping (`gemini-3.1-flash-lite` ↔ `gemini-3.5-flash-lite`) | `ExtHub.chatCompletions()` |
-| Gemini Enterprise & Vertex AI Search tab detection & DOM automation | `background.js` (`findChatTab`), `page.js` (`runVertexSearch`), manifests |
-| Extensions version bump & synchronization | `package.json` (0.7.0), `packages/core/.../manifest.json`, `release/.../manifest.json` |
-| Token-injected build artifact & zip | `release/aipass-bridge-chrome-built/` & `release/aipass-bridge-chrome-built.zip` |
-| Live Cloudflare Worker Deploy & Verification | `https://aipass-web-bridge.pansakorn.workers.dev/registry` (200 OK), secrets `BRIDGE_SECRET` & `CLIENT_API_KEY` active |
+| Popup UI Deduplication (`select#model` removed, default badge & banner in Usable Models) | `popup.html`, `popup.js` + unit tests ใน `test/test-cf-worker.test.mjs` |
+| Multi-Provider Tab Isolation (Vertex tabs isolated from `tabCoordinator` lease) | `background.js` (`vertexPorts`, `isVertexUrl`, `findVertexTab`) |
+| Smart Provider-Aware Routing (explicit model or default model provider mapping) | `background.js` (`getProviderForModel`, `handleJob`, `handleBridgeEvent`) |
+| Cloudflare Worker `POST /config` dynamic endpoint | `cloudflare/worker.js` (`ExtHub.fetch`) |
+| Extensions version bump & synchronization (0.7.4) | `package.json` (0.7.4), `packages/core/.../manifest.json`, `release/.../manifest.json` |
+| Token-injected build artifact & release zip v0.7.4 | `release/aipass-bridge-chrome-built/`, `release/aipass-bridge-chrome-built.zip`, `release/aipass-bridge-chrome-v0.7.4.zip` |
 
 ### ⏳ งานที่เหลือ (ตามลำดับที่แนะนำ)
 

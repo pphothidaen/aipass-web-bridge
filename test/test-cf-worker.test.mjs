@@ -398,3 +398,53 @@ test("Chrome Extension: popup and background support per-page online/offline sta
   assert.ok(popupJs.includes("renderPages"));
   assert.ok(popupJs.includes("renderUsableModels"));
 });
+
+test("Popup UI Deduplication: select#model removed, default banner and ★ Default badge integrated into usableSection", () => {
+  const popupHtml = fs.readFileSync(path.join(__dirname, "../packages/core/aipass-bridge/extension/popup.html"), "utf8");
+  // <select id="model"> must be removed to avoid duplication
+  assert.ok(!popupHtml.includes('<select id="model"'), "popup.html must not contain <select id=\"model\"> dropdown");
+  // Must include default model banner / indicator in usableSection
+  assert.ok(popupHtml.includes('id="currentDefaultName"'), "popup.html must include currentDefaultName banner");
+  // Must maintain filter pills
+  assert.ok(popupHtml.includes('data-filter="all"'), "popup.html must include all filter");
+  assert.ok(popupHtml.includes('data-filter="free"'), "popup.html must include free filter");
+  assert.ok(popupHtml.includes('data-filter="aipass"'), "popup.html must include aipass filter");
+  assert.ok(popupHtml.includes('data-filter="vertex"'), "popup.html must include vertex filter");
+
+  const popupJs = fs.readFileSync(path.join(__dirname, "../packages/core/aipass-bridge/extension/popup.js"), "utf8");
+  // Must include ★ Default badge
+  assert.ok(popupJs.includes("★ Default"), "popup.js must render ★ Default badge on active model");
+  // Must include click handler sending POST /config for default model switch
+  assert.ok(popupJs.includes("/config"), "popup.js must send POST /config when switching default model");
+  assert.ok(popupJs.includes("defaultModel"), "popup.js must handle defaultModel");
+});
+
+test("Multi-Provider Tab Isolation & Smart Routing in background.js", () => {
+  const bgSource = fs.readFileSync(path.join(__dirname, "../packages/core/aipass-bridge/extension/background.js"), "utf8");
+  // Multi-Provider Tab Isolation
+  assert.ok(bgSource.includes("isVertexUrl") || bgSource.includes("findVertexTab"), "background.js must isolate vertex tab detection");
+  assert.ok(bgSource.includes("findAipassTab"), "background.js must isolate aipass tab detection");
+  // tabCoordinator isolation: vertex tabs must not be added to tabCoordinator or steal leadership
+  assert.ok(bgSource.includes("vertexPorts") || bgSource.includes("tabCoordinator"), "background.js must maintain tab isolation");
+  // Smart routing by provider
+  assert.ok(bgSource.includes("getProviderForModel"), "background.js must resolve provider for specified model");
+  assert.ok(bgSource.includes("getDefaultModel"), "background.js must resolve default model when model is omitted");
+});
+
+test("ExtHub: POST /config updates defaultModel dynamically", async () => {
+  const hub = new ExtHub({}, {});
+  assert.equal(hub.defaultModel, "gemini-3.5-flash-lite");
+
+  const req = new Request("https://hub.internal/config", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ defaultModel: "gemini-enterprise-vertex" }),
+  });
+  const res = await hub.fetch(req);
+  assert.equal(res.status, 200);
+  const data = await res.json();
+  assert.equal(data.ok, true);
+  assert.equal(data.defaultModel, "gemini-enterprise-vertex");
+  assert.equal(hub.defaultModel, "gemini-enterprise-vertex");
+});
+

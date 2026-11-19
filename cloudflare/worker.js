@@ -971,6 +971,14 @@ export class ExtHub {
     if (p === "mcp" && request.method === "POST") return this.handleMcp(request);
 
     if (p === "status" || p === "health") return this.status(url.host);
+    if (p === "config" && request.method === "POST") {
+      const body = await request.json().catch(() => ({}));
+      if (typeof body.defaultModel === "string" && body.defaultModel.trim()) {
+        this.defaultModel = body.defaultModel.trim();
+        this.conversationCache = null;
+      }
+      return json({ ok: true, defaultModel: this.defaultModel });
+    }
     if (p === "registry" || p === "registry/status") return this.registry(url.host);
     if (p === "registry/models") {
       const models = await this.refreshModels();

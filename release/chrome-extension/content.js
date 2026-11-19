@@ -86,7 +86,9 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 function connectTabPort() {
   if (!current() || !chrome.runtime?.id) return;
   try {
-    tabPort = chrome.runtime.connect({ name: 'aipass-tab' });
+    const host = window.location.hostname || '';
+    const isVertex = host.includes('cloud.google') || host.includes('vertexaisearch');
+    tabPort = chrome.runtime.connect({ name: isVertex ? 'vertex-tab' : 'aipass-tab' });
   } catch {
     if (!chrome.runtime?.id) return;
     setTimeout(connectTabPort, 1000);
