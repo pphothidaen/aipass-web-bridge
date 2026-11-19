@@ -52,14 +52,15 @@ deploy production ผ่าน post-deploy smoke
   เปล่า ไม่มี `.gitmodules` → checkout บน GitHub ไม่มีเนื้อหา nested repo →
   redteam ENOENT · แก้: จดทะเบียน submodule ชี้ fork สาธารณะ + `submodules: recursive`
   ใน checkout ของ blueteam/redteam + sync gitlink ทุกครั้งที่ nested repo ขยับ
-- **ผลลัพธ์ CI/CD ล่าสุด (v0.6.4 — Run #35420092689)**:
-  - push commit `289724b` (submodule `6c20814`) สำเร็จ
+- **ผลลัพธ์ CI/CD ล่าสุด (v0.7.0 — Run #44537636011)**:
+  - push commit `145d3f6` สำเร็จ
   - GitHub Actions 4 jobs ผ่านครบ 100%:
     - `smoke`: ผ่าน (syntax worker, background.js, popup.js, secretary.py, live probe)
     - `blueteam`: ผ่าน (gitleaks + npm audit + secret-hygiene)
-    - `redteam`: ผ่าน (unit tests 32/32 + red-team-chaos 10/10 + ssrf 5/5)
+    - `redteam`: ผ่าน (unit tests 36/36 + red-team-chaos 10/10 + ssrf 5/5)
     - `deploy`: รันจริงสำเร็จ Cloudflare Worker deployed + post-deploy smoke ผ่าน (`"ok": true`)
-  - ยืนยันสถานะ Worker ที่ `https://aipass-web-bridge.taijustarrett417.workers.dev/status` ตอบ `ok: true`, architecture: Worker + Durable Object
+  - ยืนยันสถานะ Worker ที่ `https://aipass-web-bridge.pansakorn.workers.dev/status` ตอบ `ok: true`, architecture: Worker + Durable Object
+  - อัปโหลด Extension Release Artifacts บน GitHub Actions สำเร็จเรียบร้อย
 - **Artifacts ที่สร้างแล้ว**:
   - `release/aipass-bridge-chrome-v0.6.4.zip` (Source release zip)
   - `scripts/build-extension.py` รองรับ flag `--zip` สำหรับสร้าง token-injected artifact ในขั้นตอนเดียว

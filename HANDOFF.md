@@ -52,12 +52,12 @@
 3. **กฎ version sync**: root `package.json` = `extension/manifest.json` (submodule) =
    `release/chrome-extension/manifest.json` — test-cf-worker assert ทั้งสามชุดเท่ากัน
    ตอนนี้เป็น 0.6.4 (commit `6c20814` ใน fork + gitlink อัปเดตใน repo หลัก)
-4. **CI/CD ผ่านครบ 4 Jobs บน GitHub Actions (Run #35420092689)**:
+4. **CI/CD ผ่านครบ 4 Jobs บน GitHub Actions (Run #44537636011)**:
    - `smoke` (Syntax & Live Smoke Gate) — ผ่าน 100%
    - `blueteam` (Gitleaks, Audit, Secret Hygiene) — ผ่าน 100%
-   - `redteam` (Unit Tests 32/32, Red-team Chaos 10/10, SSRF Suite 5/5) — ผ่าน 100%
-   - `deploy` (Wrangler Deploy & Post-deploy smoke) — สำเร็จ 100%
-   - ผลตรวจ Production: `curl https://aipass-web-bridge.taijustarrett417.workers.dev/status` ตอบ `ok: true`, architecture: Worker + Durable Object
+   - `redteam` (Unit Tests 36/36, Red-team Chaos 10/10, SSRF Suite 5/5) — ผ่าน 100%
+   - `deploy` (Wrangler Deploy & Post-deploy smoke) — สำเร็จ 100% (สร้าง and upload artifact `aipass-bridge-extension` เรียบร้อย)
+   - ผลตรวจ Production: `curl https://aipass-web-bridge.pansakorn.workers.dev/status` ตอบ `ok: true`, architecture: Worker + Durable Object
 5. **Governance & Architectural Guardrails**:
    - จัดทำ [`GUARDRAILS.md`](./GUARDRAILS.md) 5 เสาหลัก และกฎถาวร [`.agent/rules/blueteam-redteam-tdd.md`](./.agent/rules/blueteam-redteam-tdd.md)
    - อัปเดตระเบียบ Pre-Flight Work Audit ใน [`AGENTS.md`](./AGENTS.md) และ [`GEMINI.md`](./GEMINI.md)
