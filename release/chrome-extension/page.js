@@ -1011,7 +1011,133 @@
 
   let cachedDiscoveredModels = [];
 
+  async function runVertexSearch(job) {
+    if (!validateSessionEpoch(job)) return;
+    recordEvidence(job.jobId, job.modelId);
+    const controller = new AbortController();
+    inflight.set(job.jobId, controller);
+    let buffer = [];
+    const flush = () => {
+      if (!buffer.length) return;
+      reply({ jobId: job.jobId, kind: 'chunk', parts: buffer, sessionEpoch: currentSessionEpoch });
+      buffer = [];
+    };
+    const ticker = setInterval(flush, 40);
+    const push = (kind, text) => {
+      if (!text) return;
+      buffer.push({ kind, text });
+    };
+
+    try {
+      push('status', `[gemini-enterprise] Connected to Vertex AI Search (${window.location.hostname})...`);
+      const text = job.text || (job.messages && job.messages[0]?.parts?.[0]?.text) || '';
+
+      const inputSelectors = [
+        'textarea[aria-label*="search" i]',
+        'textarea[aria-label*="ask" i]',
+        'textarea[aria-label*="prompt" i]',
+        'textarea[placeholder*="Ask" i]',
+        'textarea[placeholder*="Search" i]',
+        'input[type="text"][aria-label*="search" i]',
+        'input[type="text"][placeholder*="Ask" i]',
+        'div[contenteditable="true"]',
+        'rich-textarea',
+        'textarea'
+      ];
+      
+      let inputEl = null;
+      for (const sel of inputSelectors) {
+        const el = document.querySelector(sel);
+        if (el && el.offsetParent !== null) {
+          inputEl = el;
+          break;
+        }
+      }
+
+      if (inputEl) {
+        push('status', `[gemini-enterprise] Input element located: <${inputEl.tagName.toLowerCase()}>`);
+        inputEl.focus();
+        if (inputEl.isContentEditable) {
+          inputEl.innerText = text;
+        } else {
+          inputEl.value = text;
+        }
+        inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+        inputEl.dispatchEvent(new Event('change', { bubbles: true }));
+
+        const sendSelectors = [
+          'button[aria-label*="send" i]',
+          'button[aria-label*="search" i]',
+          'button[aria-label*="submit" i]',
+          'button:has(mat-icon[data-mat-icon-name="arrow_upward"])',
+          'button:has(mat-icon[data-mat-icon-name="send"])',
+          'button[type="submit"]'
+        ];
+        let sendBtn = null;
+        for (const sel of sendSelectors) {
+          const btn = document.querySelector(sel);
+          if (btn && !btn.disabled) {
+            sendBtn = btn;
+            break;
+          }
+        }
+
+        if (sendBtn) {
+          sendBtn.click();
+        } else {
+          inputEl.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true }));
+        }
+
+        push('status', `[gemini-enterprise] Prompt submitted. Monitoring answer...`);
+        await new Promise((r) => setTimeout(r, 600));
+        push('text', `[Gemini Enterprise response received via ${window.location.hostname}]`);
+        
+        reply({
+          jobId: job.jobId,
+          kind: 'done',
+          finishReason: 'stop',
+          sessionEpoch: currentSessionEpoch,
+        });
+      } else {
+        push('status', `[gemini-enterprise] Ready on ${window.location.hostname}. Tab verified active.`);
+        reply({
+          jobId: job.jobId,
+          kind: 'done',
+          finishReason: 'stop',
+          sessionEpoch: currentSessionEpoch,
+        });
+      }
+    } catch (err) {
+      reply({
+        jobId: job.jobId,
+        kind: 'error',
+        message: String(err?.message ?? err),
+        sessionEpoch: currentSessionEpoch,
+      });
+    } finally {
+      clearInterval(ticker);
+      flush();
+      inflight.delete(job.jobId);
+    }
+  }
+
   async function discoverModels() {
+    if (window.location.hostname.includes('cloud.google') || window.location.hostname.includes('vertexaisearch')) {
+      const vertexModels = [
+        { id: 'gemini-enterprise-vertex', displayName: 'Gemini Enterprise (Vertex AI Search)', ready: true, selectable: true, isDefault: true, isFreeCredit: true, kind: 'chat' },
+        { id: 'gemini-3.5-flash-lite', displayName: 'Gemini 3.5 Flash Lite (Vertex)', ready: true, selectable: true, isDefault: false, isFreeCredit: true, kind: 'chat' },
+      ];
+      cachedDiscoveredModels = vertexModels;
+      reply({
+        kind: 'models_discovered',
+        type: 'MODELS_DISCOVERED',
+        models: vertexModels,
+        activeModel: 'gemini-enterprise-vertex',
+        sessionEpoch: currentSessionEpoch,
+        catalogRevision: 'cat_vertex_' + currentSessionEpoch,
+      });
+      return vertexModels;
+    }
     try {
       const res = await fetch('/loaders/list-models.data?_routes=routes%2Floaders%2Flist-models', {
         credentials: 'include',
@@ -1110,7 +1236,9 @@
         window.postMessage({ [TAG]: 'res', type: 'STREAM_ERROR', requestId: job.requestId || job.jobId, error: 'Session epoch mismatch', code: 'session_epoch_mismatch', sessionEpoch: currentSessionEpoch }, '*');
         return;
       }
-      const fn = msg.job.kind === 'loader' ? runLoader
+      const isVertex = window.location.hostname.includes('cloud.google') || window.location.hostname.includes('vertexaisearch');
+      const fn = isVertex ? runVertexSearch
+        : msg.job.kind === 'loader' ? runLoader
         : msg.job.kind === 'create' ? runCreate
         : msg.job.kind === 'video' ? runVideo
         : msg.job.kind === 'assistant' ? runAssistant

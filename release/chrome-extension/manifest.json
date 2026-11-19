@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "aipass bridge",
-  "version": "0.6.7",
-  "description": "Relays local OpenAI-compatible requests through an open de.aipass.net tab.",
+  "version": "0.7.0",
+  "description": "Relays local OpenAI-compatible requests through an open de.aipass.net or Gemini Enterprise tab.",
   "permissions": [
     "storage",
     "alarms",
@@ -13,6 +13,8 @@
   "host_permissions": [
     "https://*.aipass.net/*",
     "https://aipass.net/*",
+    "https://vertexaisearch.cloud.google/*",
+    "https://*.cloud.google/*",
     "https://storage.googleapis.com/*",
     "https://*.workers.dev/*",
     "http://127.0.0.1/*",
@@ -26,7 +28,9 @@
     {
       "matches": [
         "https://*.aipass.net/*",
-        "https://aipass.net/*"
+        "https://aipass.net/*",
+        "https://vertexaisearch.cloud.google/*",
+        "https://*.cloud.google/*"
       ],
       "js": [
         "page.js"
@@ -37,7 +41,9 @@
     {
       "matches": [
         "https://*.aipass.net/*",
-        "https://aipass.net/*"
+        "https://aipass.net/*",
+        "https://vertexaisearch.cloud.google/*",
+        "https://*.cloud.google/*"
       ],
       "js": [
         "content.js"

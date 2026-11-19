@@ -16,7 +16,7 @@
 // TODO before production: see docs/cloudflare-deployment-assessment.md
 // (token auth is enforced here; tighten CORS, add rate limiting).
 
-const MODEL_FALLBACK = ["gemini-3.1-flash-lite", "claude-sonnet-5@default"];
+const MODEL_FALLBACK = ["gemini-3.5-flash-lite", "gemini-3.1-flash-lite", "claude-sonnet-5@default"];
 
 // Models list loader (same-origin .data route the web UI itself uses).
 const MODELS_LOADER_URL = "/loaders/list-models.data?_routes=routes%2Floaders%2Flist-models";
@@ -358,8 +358,13 @@ export class ExtHub {
           this.modelCatalogAt = Date.now();
           this.catalogRevision++;
           const free = models.filter((m) => m.free).map((m) => m.id);
-          this.defaultModel = free.includes("gemini-3.1-flash-lite")
-            ? "gemini-3.1-flash-lite" : this.defaultModel;
+          if (free.includes("gemini-3.5-flash-lite")) {
+            this.defaultModel = "gemini-3.5-flash-lite";
+          } else if (free.includes("gemini-3.1-flash-lite")) {
+            this.defaultModel = "gemini-3.1-flash-lite";
+          } else if (free.length) {
+            this.defaultModel = free[0];
+          }
         }
       } catch {
         clearTimeout(timer);
@@ -405,7 +410,15 @@ export class ExtHub {
     const body = await request.json();
     const text = body.messages?.filter(m => m.role !== "system").map(m => m.content).join("\n")
       || "Hello";
-    const modelId = body.model || this.defaultModel;
+    let modelId = body.model || this.defaultModel;
+    const availableIds = this.modelCatalog.map((m) => m.id);
+    if (availableIds.length) {
+      if (modelId === "gemini-3.1-flash-lite" && !availableIds.includes("gemini-3.1-flash-lite") && availableIds.includes("gemini-3.5-flash-lite")) {
+        modelId = "gemini-3.5-flash-lite";
+      } else if (modelId === "gemini-3.5-flash-lite" && !availableIds.includes("gemini-3.5-flash-lite") && availableIds.includes("gemini-3.1-flash-lite")) {
+        modelId = "gemini-3.1-flash-lite";
+      }
+    }
     const created = Math.floor(Date.now() / 1000);
     const id = `chatcmpl-${crypto.randomUUID().slice(0, 24)}`;
 
@@ -883,6 +896,35 @@ export class ExtHub {
     });
   }
 
+  async registry(host) {
+    const models = await this.refreshModels();
+    return json({
+      ok: true,
+      service: "aipass-web-bridge",
+      registry: {
+        version: "0.7.0",
+        catalogRevision: this.catalogRevision,
+        default_model: this.defaultModel,
+        models_count: models.length,
+        models: models.map((m) => m.id),
+        endpoints: {
+          status: `https://${host}/status`,
+          models: `https://${host}/v1/models`,
+          chat: `https://${host}/v1/chat/completions`,
+          gemini_models: `https://${host}/v1/gemini/models`,
+          gemini_chat: `https://${host}/v1/gemini/chat/completions`,
+          mcp: `https://${host}/mcp`,
+          registry: `https://${host}/registry`,
+        },
+      },
+      data: models.map((m) => ({
+        id: m.id, object: "model", owned_by: m.provider ?? "aipass",
+        name: m.name, free: m.free, free_credit: m.free, kind: m.kind,
+        description: m.description, tier: m.tier, use_case: m.use_case,
+      })),
+    });
+  }
+
   async fetch(request) {
     const url = new URL(request.url);
     const p = url.pathname.replace(/^\/+|\/+$/g, "");
@@ -926,6 +968,20 @@ export class ExtHub {
     if (p === "mcp" && request.method === "POST") return this.handleMcp(request);
 
     if (p === "status" || p === "health") return this.status(url.host);
+    if (p === "registry" || p === "registry/status") return this.registry(url.host);
+    if (p === "registry/models") {
+      const models = await this.refreshModels();
+      return json({
+        object: "list",
+        catalogRevision: this.catalogRevision,
+        default_model: this.defaultModel,
+        data: models.map((m) => ({
+          id: m.id, object: "model", owned_by: m.provider ?? "aipass",
+          name: m.name, free: m.free, free_credit: m.free, kind: m.kind,
+          description: m.description, tier: m.tier, use_case: m.use_case,
+        })),
+      });
+    }
     if (p === "" && request.method === "GET") return this.status(url.host);
     // Chatbox AI compatibility: also accept /models and /chat/completions (no /v1 prefix)
     if (p === "v1/models" || p === "models") {
@@ -1015,7 +1071,8 @@ export default {
       (request.headers.get("authorization") || "").replace(/^Bearer\s+/i, "").trim();
 
     const isPublicHealth = request.method === "GET" &&
-      (url.pathname === "/" || url.pathname === "/status" || url.pathname === "/health");
+      (url.pathname === "/" || url.pathname === "/status" || url.pathname === "/health" ||
+       url.pathname === "/registry" || url.pathname.startsWith("/registry/"));
     if (!isPublicHealth) {
       const allowed = [extToken, apiToken].filter(Boolean);
       if (allowed.length && (!provided || !allowed.includes(provided))) {
@@ -1039,6 +1096,28 @@ export default {
           },
         }, 503);
       }
+    }
+
+    // For public health checks without Durable Object binding (local dev),
+    // return directly without accessing Durable Object which may not exist.
+    if (isPublicHealth && !env.EXT_HUB) {
+      if (url.pathname.startsWith("/registry")) {
+        return json({
+          ok: true,
+          service: "aipass-web-bridge",
+          registry: {
+            version: "0.7.0",
+            models: MODEL_FALLBACK,
+            endpoints: {
+              status: `https://${url.host}/status`,
+              models: `https://${url.host}/v1/models`,
+              registry: `https://${url.host}/registry`,
+            },
+          },
+          data: MODEL_FALLBACK.map((id) => ({ id, object: "model", owned_by: "aipass" })),
+        });
+      }
+      return json({ ok: true, service: "aipass-web-bridge", environment: "local-dev" });
     }
 
     const id = env.EXT_HUB.idFromName("singleton");

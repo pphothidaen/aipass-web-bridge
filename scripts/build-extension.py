@@ -55,7 +55,7 @@ def resolve_placeholder(env_var: str, project: str, config: str) -> str:
         val = get_doppler_secret(env_var, project, config)
         if val:
             return val
-    val = os.environ.get(env_var, "")
+    val = os.environ.get(env_var, "") or (os.environ.get("BRIDGE_SECRET", "") if env_var == "BRIDGE_AUTH_TOKEN" else "")
     if val:
         return val
     print(f"ERROR: '{env_var}' not found via Doppler "

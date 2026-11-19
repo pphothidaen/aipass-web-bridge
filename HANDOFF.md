@@ -1,11 +1,27 @@
-# HANDOFF — aipass-web-bridge v0.6.4 (Governance, Guardrails & TDD Checkpoint)
+# HANDOFF — aipass-web-bridge v0.7.0 (Model Registry, Dynamic Fallback & Gemini Enterprise)
 
-อัปเดต: 2026-09-19 · Asia/Bangkok · สถานะ: **v0.6.4 บรรจุ Governance, กฎเหล็ก GUARDRAILS.md 5 เสาหลัก, Pre-Flight Audit, และ TDD กฎถาวรเรียบร้อย**
+อัปเดต: 2026-11-19 · Asia/Bangkok · สถานะ: **v0.7.0 รองรับ Endpoint /registry (Public & DO), รองรับ Gemini Enterprise (Vertex AI Search) และ Model Remapping/Fallback สมบูรณ์**
 
 > เอกสารหลักของ checkpoint นี้คือ `plan.md` (สถานะ + ลำดับงานที่เหลือ)
 > กฎทอง: จบทุก session ต้องอัปเดต `plan.md` + `handoff.md` ให้เป็นปัจจุบันเสมอ
 
-## ⚡ สิ่งที่ทำเพิ่มหลัง v0.6.2 (session นี้, เป้า "CI/CD to production")
+## ⚡ สิ่งที่ทำเพิ่มใน v0.7.0
+
+1. **เพิ่มและเปิดใช้งาน First-class /registry Endpoints**:
+   - `/registry`, `/registry/status`, และ `/registry/models` ใน `cloudflare/worker.js`
+   - แก้ไขปัญหา "❌ ล้มเหลว Failed to connect to host" โดยอนุญาตให้สาธารณะเข้าถึง `/registry*` สำหรับ health/discovery checks (OpenAI models data array + detailed registry metadata)
+2. **รองรับโมเดลทั้งหมดและ Dynamic Fallback/Remapping**:
+   - ปรับปรุง `refreshModels()` ให้ตรวจจับโมเดลฟรีรุ่นใหม่ (`gemini-3.5-flash-lite`) แบบไดนามิก แทนการ hardcode
+   - ทำ automatic remapping: หาก Client ร้องขอ `gemini-3.1-flash-lite` แต่ใน catalog ล่าสุดมี `gemini-3.5-flash-lite` จะถูก alias/remap ไปยังโมเดลที่ใช้งานได้อัตโนมัติ โดยไม่ error
+3. **รองรับ Gemini Enterprise (Vertex AI Search)**:
+   - อัปเดต permissions และ content scripts ใน `manifest.json` ทั้งใน `packages/core/...` และ `release/...` ให้รองรับ `https://vertexaisearch.cloud.google/*` และ `https://*.cloud.google/*`
+   - ปรับปรุง `background.js` ในฟังก์ชัน `findChatTab()` ให้ตรวจจับแท็บ Gemini Enterprise
+   - เพิ่ม `runVertexSearch()` ใน `page.js` สำหรับการค้นหาและป้อน prompt ผ่าน DOM บน Google Cloud interfaces พร้อมรายงานสถานะผ่าน stream
+4. **ความสอดคล้องของ Versioning และ Test Suites**:
+   - Version ซิงก์สมบูรณ์ `0.7.0` ข้าม root `package.json`, core manifest, และ release manifest
+   - ผ่าน `npm test` 36/36 tests 100%
+   - ผ่าน Adversarial Chaos Suites (RED-1 ถึง RED-5b) และ SSRF Security Suites 15/15 tests 100%
+   - สร้าง built package และ source zip `v0.7.0` เรียบร้อย
 
 1. **push สำเร็จหลังแก้ 2 อุปสรรค**
    - nested repo remote เดิม `niawjunior/aipass-bridge` → 403 สำหรับ account

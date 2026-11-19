@@ -1,6 +1,6 @@
 # PLAN — aipass-web-bridge: การปรับแนวคิดและ API Spec ให้ตรงกับ gemini-web-bridge
 
-อัปเดต: 2026-09-19 · เวอร์ชัน 0.6.4 (Governance, Guardrails, TDD rules, Git hygiene guard, Submodule v0.6.4 synced)
+อัปเดต: 2026-11-19 · เวอร์ชัน 0.7.0 (Model Registry Endpoint, Dynamic Fallback/Remapping, Gemini Enterprise & Vertex AI Search Support)
 
 > เอกสารอ้างอิงหลัก (จาก `/Users/kimlenglim/Project/gemini-web-bridge`):
 > `cloudflare-worker/src/index.js` (API spec), `.github/workflows/ci.yml`
@@ -9,29 +9,25 @@
 
 ## เป้าหมายระดับสูง
 
-ให้ aipass-web-bridge และ gemini-web-bridge ใช้ "แนวทางเดียวกัน" 3 ด้าน:
-
 1. **Unified API spec / auth** — OpenAI-compatible error envelope, สอง role
    (`CLIENT_API_KEY` / `BRIDGE_SECRET`), fail-fast codes
-   (`503 secrets_unconfigured`, `422 model_unverified`, `429 queue_full`)
+   (`503 secrets_unconfigured`, `422 model_unverified`, `429 queue_full`), และ `/registry` discovery
 2. **Secret & config storage policy** — precedence: **Doppler → Cloudflare → .env → defaults**
 3. **CI/CD blue-team + red-team** — ทุก push/PR ต้องผ่าน security gates ก่อน deploy
 
-## สถานะงาน (2026-09-19)
+## สถานะงาน (2026-11-19)
 
-### ✅ เสร็จแล้ว (v0.6.0, `npm test` 32/32 ผ่าน)
+### ✅ เสร็จแล้ว (v0.7.0, `npm test` 36/36 ผ่าน, Adversarial 15/15 ผ่าน)
 
 | งาน | หลักฐาน |
 |---|---|
-| Config loader รวมศูนย์ (Doppler → CF vars → .env → defaults) | `packages/core/aipass-bridge/bridge/config.mjs` + `server.mjs` ใช้ `loadConfig()` |
-| ลบ hardcoded fallback tokens ออกจาก worker | `cloudflare/worker.js` (เดิม `aipass-bridge-secret-2026`/`hermes-secret-key-2026` ถูกยอมรับเสมอ) |
-| Auth 401 envelope แบบ OpenAI + fail-fast 503 เมื่อไม่มี secrets | `cloudflare/worker.js` edge auth |
-| CI blue-team (gitleaks + npm audit + secret-hygiene grep) | `.github/workflows/ci.yml` job `blueteam` |
-| CI red-team (red-team-chaos + ssrf suites) | `.github/workflows/ci.yml` job `redteam` |
-| deploy ต้องผ่าน smoke+blueteam+redteam, รันบน PR ด้วย | `ci.yml` |
-| เอกสาร policy + unified spec | `docs/CONFIGURATION.md`, `docs/API-SPEC.md`, `.env.example` |
-| Version 0.6.0 + CHANGELOG + manifests | `package.json`, `CHANGELOG.md`, `extension/manifest.json`, `release/chrome-extension/manifest.json` |
-| Unit tests config precedence (7 tests) | `test/test-config-loader.test.mjs` (อยู่ใน `npm test`) |
+| Model Registry Endpoint (`/registry`, `/registry/models`, `/registry/status`) | `cloudflare/worker.js` + unit tests ใน `test/test-cf-worker.test.mjs` |
+| Public health discovery ไม่ต้องใช้ Bearer token สำหรับ `/registry*` | `cloudflare/worker.js` edge auth (`isPublicHealth`) |
+| Dynamic default model detection (`gemini-3.5-flash-lite`, `gemini-3.1-flash-lite`) | `ExtHub.refreshModels()` |
+| Model aliasing/remapping (`gemini-3.1-flash-lite` ↔ `gemini-3.5-flash-lite`) | `ExtHub.chatCompletions()` |
+| Gemini Enterprise & Vertex AI Search tab detection & DOM automation | `background.js` (`findChatTab`), `page.js` (`runVertexSearch`), manifests |
+| Extensions version bump & synchronization | `package.json` (0.7.0), `packages/core/.../manifest.json`, `release/.../manifest.json` |
+| Token-injected build artifact & zip | `release/aipass-bridge-chrome-built/` & `release/aipass-bridge-chrome-built.zip` |
 
 ### ⏳ งานที่เหลือ (ตามลำดับที่แนะนำ)
 

@@ -175,12 +175,19 @@ async function refreshModels() {
 }
 
 async function findChatTab() {
-  const tabs = await chrome.tabs.query({ url: ['https://*.aipass.net/*', 'https://aipass.net/*'] });
+  const tabs = await chrome.tabs.query({
+    url: [
+      'https://*.aipass.net/*',
+      'https://aipass.net/*',
+      'https://vertexaisearch.cloud.google/*',
+      'https://*.cloud.google/*',
+    ],
+  });
   if (!tabs.length) return null;
   const live = tabs.filter((t) => !t.discarded && t.status !== 'unloaded');
   const pool = live.length ? live : tabs;
-  // Prefer a tab already sitting on a chat route.
-  return pool.find((t) => t.url?.includes('/chat')) ?? pool[0];
+  // Prefer a tab sitting on a chat route or vertexai search.
+  return pool.find((t) => t.url?.includes('/chat') || t.url?.includes('vertexaisearch')) ?? pool[0];
 }
 
 function waitForComplete(tabId, timeoutMs = 15_000) {
@@ -228,7 +235,7 @@ async function handleJob(job) {
     tab = await findChatTab();
   }
   if (!tab) {
-    await post('/ext/error', { jobId: job.jobId, message: 'no de.aipass.net tab is open' });
+    await post('/ext/error', { jobId: job.jobId, message: 'no de.aipass.net or Gemini Enterprise tab is open' });
     return;
   }
   post('/ext/tab', { tabId: tab.id, url: tab.url, jobId: job.jobId, kind: job.kind });
@@ -240,7 +247,7 @@ async function handleJob(job) {
     jobTabs.delete(job.jobId);
     await post('/ext/error', {
       jobId: job.jobId,
-      message: `could not reach the de.aipass.net tab (${tab.url ?? tab.id}): ${err?.message ?? err}`,
+      message: `could not reach the active tab (${tab.url ?? tab.id}): ${err?.message ?? err}`,
     });
   }
 }

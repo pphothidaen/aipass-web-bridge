@@ -5,7 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-import {
+import worker, {
   ExtHub,
   decodeTurboStream,
   findValue,
@@ -276,4 +276,93 @@ test("Chrome Extension: defaults and manifests are properly configured for Kiwi 
   for (const src of extensionFiles) {
     assert.ok(!src.includes("aipass-bridge-secret-2026"), "extension source must not contain the retired default token");
   }
+});
+
+test("ExtHub: /registry and /registry/models return 200 with registry metadata and models list", async () => {
+  const hub = new ExtHub({}, {});
+  hub.modelCatalog = [
+    { id: "gemini-3.5-flash-lite", name: "Gemini 3.5 Flash Lite", free: true, kind: "chat" },
+    { id: "claude-opus-5-5@azure", name: "Claude Opus 5.5", free: false, kind: "chat" },
+  ];
+  hub.defaultModel = "gemini-3.5-flash-lite";
+
+  // Test GET /registry
+  const regReq = new Request("https://hub.internal/registry", { method: "GET" });
+  const regRes = await hub.fetch(regReq);
+  assert.equal(regRes.status, 200);
+  const regJson = await regRes.json();
+  assert.equal(regJson.ok, true);
+  assert.equal(regJson.service, "aipass-web-bridge");
+  assert.ok(regJson.registry);
+  assert.ok(Array.isArray(regJson.data));
+  assert.equal(regJson.data.length, 2);
+  assert.equal(regJson.data[0].id, "gemini-3.5-flash-lite");
+
+  // Test GET /registry/models
+  const regModelsReq = new Request("https://hub.internal/registry/models", { method: "GET" });
+  const regModelsRes = await hub.fetch(regModelsReq);
+  assert.equal(regModelsRes.status, 200);
+  const regModelsJson = await regModelsRes.json();
+  assert.equal(regModelsJson.object, "list");
+  assert.equal(regModelsJson.data.length, 2);
+});
+
+test("ExtHub: model remapping remaps gemini-3.1-flash-lite to gemini-3.5-flash-lite when needed", async () => {
+  const hub = new ExtHub({}, {});
+  hub.modelCatalog = [
+    { id: "gemini-3.5-flash-lite", name: "Gemini 3.5 Flash Lite", free: true, kind: "chat" },
+  ];
+  hub.defaultModel = "gemini-3.5-flash-lite";
+  hub.conversationCache = "test-conv-123";
+  hub.extWriter = { write: async () => {} };
+  hub.extReady = true;
+
+  let dispatchedModelId = null;
+  hub.runChatJob = async (text, modelId, conversationId) => {
+    dispatchedModelId = modelId;
+    return {
+      chunks: [{ text: "ตอบกลับจาก Gemini 3.5 Flash Lite" }],
+      finishReason: "stop",
+    };
+  };
+
+  const req = new Request("https://hub.internal/v1/chat/completions", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      model: "gemini-3.1-flash-lite",
+      messages: [{ role: "user", content: "ทดสอบการทำงาน" }],
+    }),
+  });
+
+  const res = await hub.chatCompletions(req);
+  assert.equal(res.status, 200);
+  assert.equal(dispatchedModelId, "gemini-3.5-flash-lite");
+});
+
+test("Edge worker fetch: /registry is accessible without token as public health/discovery", async () => {
+  const env = {
+    BRIDGE_SECRET: "mock-secret-123",
+    CLIENT_API_KEY: "mock-key-456",
+  };
+  // Edge worker with no EXT_HUB (local-dev fallback check)
+  const req = new Request("https://aipass-web-bridge.workers.dev/registry", { method: "GET" });
+  const res = await worker.fetch(req, env);
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.equal(body.ok, true);
+});
+
+test("Chrome Extension: manifests and background.js support Gemini Enterprise (vertexaisearch.cloud.google)", () => {
+  const coreManifest = JSON.parse(fs.readFileSync(path.join(__dirname, "../packages/core/aipass-bridge/extension/manifest.json"), "utf8"));
+  const releaseManifest = JSON.parse(fs.readFileSync(path.join(__dirname, "../release/chrome-extension/manifest.json"), "utf8"));
+
+  for (const m of [coreManifest, releaseManifest]) {
+    assert.ok(m.host_permissions.some((p) => p.includes("vertexaisearch.cloud.google") || p.includes("cloud.google")));
+    const contentScript = m.content_scripts.find((cs) => cs.js.includes("page.js"));
+    assert.ok(contentScript.matches.some((p) => p.includes("vertexaisearch.cloud.google") || p.includes("cloud.google")));
+  }
+
+  const bgSource = fs.readFileSync(path.join(__dirname, "../release/chrome-extension/background.js"), "utf8");
+  assert.ok(bgSource.includes("vertexaisearch.cloud.google") || bgSource.includes("cloud.google"));
 });

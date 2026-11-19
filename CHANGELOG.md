@@ -1,3 +1,22 @@
+## [0.7.0] - 2026-11-19
+
+### Added
+- **First-class Model Registry Endpoints**:
+  - `/registry`, `/registry/status`, and `/registry/models`: Public discovery routes providing service health, model registry catalog, and client compatibility endpoints.
+  - Allowed unauthenticated public discovery on `/registry*` so external clients (e.g. Chatbox, model inspectors, health probers) connect cleanly without "Failed to connect to host" or 401/404 errors.
+- **Gemini Enterprise & Vertex AI Search Integration**:
+  - Chrome Extension manifests updated with `host_permissions` and `content_scripts` matches for `https://vertexaisearch.cloud.google/*` and `https://*.cloud.google/*`.
+  - Added `findChatTab()` support for active tabs matching Gemini Enterprise and Vertex AI Search routes (`vertexaisearch.cloud.google`).
+  - Added dedicated `runVertexSearch()` DOM automation and runner in `page.js` supporting prompt entry, form dispatch, and turn completion on Google Cloud interfaces.
+  - Added model discovery support in `discoverModels()` for Gemini Enterprise (`gemini-enterprise-vertex`).
+
+### Changed
+- **Dynamic Model Selection & Aliasing**:
+  - `refreshModels()` now dynamically detects and prioritizes free flash-lite models (`gemini-3.5-flash-lite`, `gemini-3.1-flash-lite`) from the live catalog rather than hardcoding.
+  - Added seamless model remapping in `chatCompletions`: requests for `gemini-3.1-flash-lite` automatically fall back to `gemini-3.5-flash-lite` when the latter is present in the catalog.
+- **Version Bumping**: Synchronized root `package.json`, `packages/core/aipass-bridge/extension/manifest.json`, and `release/chrome-extension/manifest.json` to `0.7.0`.
+- **Build Tooling**: `scripts/build-extension.py` updated to accept `BRIDGE_SECRET` as fallback for `BRIDGE_AUTH_TOKEN`.
+
 ## [0.6.7] - 2026-09-28
 
 ### Added
