@@ -227,7 +227,7 @@ function renderPages(pages) {
   }
 }
 
-function renderUsableModels(pages, srv) {
+function renderUsableModels(pages, srv, savedDefault = null) {
   const container = $('usableList');
   const countEl = $('usableCount');
   if (!container) return;
@@ -306,13 +306,13 @@ function renderUsableModels(pages, srv) {
     return;
   }
 
-  const defaultModel = srv?.defaultModel || 'gemini-3.5-flash-lite';
+  const defaultModel = srv?.defaultModel || savedDefault || 'gemini-3.5-flash-lite';
   const defNameEl = $('currentDefaultName');
   if (defNameEl) setText(defNameEl, defaultModel);
 
   for (const m of filtered) {
     const row = document.createElement('div');
-    const isSelected = m.id === defaultModel;
+    const isSelected = m.id === defaultModel || (m.source && `${m.source}:${m.id}` === defaultModel);
     row.className = `usable-row ${isSelected ? 'is-default' : ''}`;
     row.title = isSelected ? `Current default model: ${m.id}` : `Click to set ${m.id} as default model`;
 
@@ -345,16 +345,21 @@ function renderUsableModels(pages, srv) {
         await chrome.storage.local.set({ defaultModel: m.id });
         if (srv) srv.defaultModel = m.id;
 
-        await fetch(`${bridge}/config`, {
+        const res = await fetch(`${bridge}/config`, {
           method: 'POST',
           headers: await authHeaders(),
           body: JSON.stringify({ defaultModel: m.id }),
-        });
-        toast(`Default model: ${m.id}`);
-        renderUsableModels(lastPages, srv);
+        }).catch(() => null);
+
+        if (!res || !res.ok) {
+          toast(`Default model: ${m.id} (saved locally)`);
+        } else {
+          toast(`Default model: ${m.id}`);
+        }
+        renderUsableModels(lastPages, srv, m.id);
       } catch {
         toast(`Default model: ${m.id}`);
-        renderUsableModels(lastPages, srv);
+        renderUsableModels(lastPages, srv, m.id);
       }
     });
 
@@ -363,7 +368,7 @@ function renderUsableModels(pages, srv) {
 }
 
 async function render() {
-  const saved = await chrome.storage.local.get(['bridgeUrl', 'bridgeToken']);
+  const saved = await chrome.storage.local.get(['bridgeUrl', 'bridgeToken', 'defaultModel']);
   if (saved?.bridgeUrl) {
     bridge = saved.bridgeUrl;
   } else {
@@ -404,7 +409,7 @@ async function render() {
   lastPages = sw?.pages || null;
   lastSrv = srv;
   if (lastPages) renderPages(lastPages);
-  renderUsableModels(lastPages, srv);
+  renderUsableModels(lastPages, srv, saved?.defaultModel);
 
   // Don't clobber the field while it is being edited.
   if (document.activeElement !== $('url')) {

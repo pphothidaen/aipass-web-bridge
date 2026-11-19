@@ -186,7 +186,6 @@ const siteModels = {
   ],
   vertex: [
     { id: 'gemini-enterprise-vertex', name: 'Gemini Enterprise', free: true, kind: 'chat', provider: 'Vertex AI Search' },
-    { id: 'gemini-3.5-flash-lite', name: 'Gemini 3.5 Flash Lite (Vertex)', free: true, kind: 'chat', provider: 'Vertex AI Search' },
   ],
 };
 
@@ -208,8 +207,10 @@ function isVertexModel(modelId) {
 
 function getProviderForModel(modelId) {
   if (!modelId) return 'aipass';
-  if (isVertexModel(modelId)) return 'vertex';
   const mid = String(modelId).toLowerCase();
+  if (mid.startsWith('vertex:') || mid.startsWith('vertex/')) return 'vertex';
+  if (mid.startsWith('aipass:') || mid.startsWith('aipass/')) return 'aipass';
+  if (isVertexModel(mid)) return 'vertex';
   const inVertex = (siteModels.vertex || []).some((m) => m.id.toLowerCase() === mid);
   const inAipass = (siteModels.aipass || []).some((m) => m.id.toLowerCase() === mid);
   if (inVertex && !inAipass) return 'vertex';
@@ -290,9 +291,9 @@ async function findChatTab(forModel = null) {
   const targetModel = forModel || (await getDefaultModel());
   const provider = getProviderForModel(targetModel);
   if (provider === 'vertex') {
-    return (await findVertexTab()) || (await findAipassTab());
+    return await findVertexTab();
   }
-  return (await findAipassTab()) || (await findVertexTab());
+  return await findAipassTab();
 }
 
 function waitForComplete(tabId, timeoutMs = 15_000) {
@@ -331,16 +332,11 @@ async function handleJob(job) {
     targetModel = await getDefaultModel();
   }
   const provider = getProviderForModel(targetModel);
-  const isVertexJob = Boolean(
-    provider === 'vertex' ||
-    job.modelId?.includes('vertex') ||
-    job.modelId?.includes('enterprise') ||
-    job.modelId === 'gemini-enterprise-vertex'
-  );
+  const isVertexJob = (provider === 'vertex');
 
   let tab = null;
   if (isVertexJob) {
-    tab = (await findVertexTab()) || (await findChatTab(job.modelId));
+    tab = await findVertexTab();
   } else {
     tab = await findAipassTab();
   }
@@ -591,7 +587,7 @@ const tabCoordinator = {
     try {
       const port = this.ports.get(tabId);
       const senderUrl = port?.sender?.tab?.url || port?.sender?.url || '';
-      if (isVertexUrl(senderUrl)) return false;
+      if (isVertexUrl(senderUrl) || vertexPorts.has(tabId)) return false;
 
       const data = await chrome.storage.session.get(['leaderTabId', 'leaseExpiry']);
       const now = Date.now();
@@ -702,7 +698,7 @@ const tabCoordinator = {
 
   addTab(tabId, port) {
     const senderUrl = port.sender?.tab?.url || port.sender?.url || '';
-    if (isVertexUrl(senderUrl) || port.name === 'vertex-tab') {
+    if (isVertexUrl(senderUrl) || port.name === 'vertex-tab' || vertexPorts.has(tabId)) {
       return; // Isolated: Vertex tabs never participate in AiPASS tab coordinator
     }
     this.ports.set(tabId, port);
@@ -856,7 +852,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     const payload = msg.payload;
     (async () => {
       try {
-        const tab = await findChatTab();
+        const tab = await findAipassTab();
         if (!tab) {
           sendResponse({ success: false, error: 'no de.aipass.net tab is open' });
           return;
@@ -886,7 +882,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   // STRICT ISOLATION: Vertex tabs do NOT participate in de.aipass.net leader election.
   if (msg?.type === 'acquire_lease') {
     const senderUrl = _sender?.tab?.url || _sender?.url || '';
-    if (isVertexUrl(senderUrl)) {
+    if (isVertexUrl(senderUrl) || (_sender?.tab?.id != null && vertexPorts.has(_sender.tab.id))) {
       sendResponse({ ok: false, reason: 'vertex_isolated' });
       return true;
     }
@@ -903,7 +899,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 
   if (msg?.type === 'heartbeat') {
     const senderUrl = _sender?.tab?.url || _sender?.url || '';
-    if (isVertexUrl(senderUrl)) {
+    if (isVertexUrl(senderUrl) || (_sender?.tab?.id != null && vertexPorts.has(_sender.tab.id))) {
       sendResponse({ ok: false, reason: 'vertex_isolated' });
       return true;
     }
@@ -920,7 +916,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 
   if (msg?.type === 'yield_leadership') {
     const senderUrl = _sender?.tab?.url || _sender?.url || '';
-    if (isVertexUrl(senderUrl)) {
+    if (isVertexUrl(senderUrl) || (_sender?.tab?.id != null && vertexPorts.has(_sender.tab.id))) {
       sendResponse({ ok: true, reason: 'vertex_isolated' });
       return true;
     }
@@ -934,7 +930,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 
   if (msg?.type === 'get_lease_state') {
     const senderUrl = _sender?.tab?.url || _sender?.url || '';
-    if (isVertexUrl(senderUrl)) {
+    if (isVertexUrl(senderUrl) || (_sender?.tab?.id != null && vertexPorts.has(_sender.tab.id))) {
       sendResponse({
         leaderId: null,
         leaseExpiry: 0,

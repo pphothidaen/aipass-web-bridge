@@ -9,7 +9,11 @@ Acceptance Criteria:
 import os
 import sys
 from pathlib import Path
-import pytest
+try:
+    import pytest
+except ImportError:
+    import unittest
+    raise unittest.SkipTest("pytest is not installed in the current environment")
 
 # Ensure aipass-web-bridge is in sys.path
 BRIDGE_DIR = Path(__file__).resolve().parent.parent

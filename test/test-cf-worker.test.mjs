@@ -376,7 +376,7 @@ test("ExtHub: resolveConversation bypasses conversation loader for Vertex / Gemi
 test("Chrome Extension: background.js routes vertex jobs to vertexaisearch tab and page.js flushes chunks before done", () => {
   const bgSource = fs.readFileSync(path.join(__dirname, "../packages/core/aipass-bridge/extension/background.js"), "utf8");
   assert.ok(bgSource.includes("isVertexJob"));
-  assert.ok(bgSource.includes("findChatTab(job.modelId)"));
+  assert.ok(bgSource.includes("findVertexTab"));
 
   const pageSource = fs.readFileSync(path.join(__dirname, "../packages/core/aipass-bridge/extension/page.js"), "utf8");
   assert.ok(pageSource.includes("flush();"));
@@ -421,14 +421,42 @@ test("Popup UI Deduplication: select#model removed, default banner and ★ Defau
 
 test("Multi-Provider Tab Isolation & Smart Routing in background.js", () => {
   const bgSource = fs.readFileSync(path.join(__dirname, "../packages/core/aipass-bridge/extension/background.js"), "utf8");
-  // Multi-Provider Tab Isolation
-  assert.ok(bgSource.includes("isVertexUrl") || bgSource.includes("findVertexTab"), "background.js must isolate vertex tab detection");
-  assert.ok(bgSource.includes("findAipassTab"), "background.js must isolate aipass tab detection");
+  // Multi-Provider Tab Isolation: no cross-provider fallback in findChatTab or handleJob
+  assert.ok(!bgSource.includes("(await findVertexTab()) || (await findAipassTab())"), "findChatTab must not fall back from vertex to aipass");
+  assert.ok(!bgSource.includes("(await findAipassTab()) || (await findVertexTab())"), "findChatTab must not fall back from aipass to vertex");
+  assert.ok(!bgSource.includes("(await findVertexTab()) || (await findChatTab"), "handleJob must not fall back from vertex to chat tab");
+
   // tabCoordinator isolation: vertex tabs must not be added to tabCoordinator or steal leadership
-  assert.ok(bgSource.includes("vertexPorts") || bgSource.includes("tabCoordinator"), "background.js must maintain tab isolation");
-  // Smart routing by provider
-  assert.ok(bgSource.includes("getProviderForModel"), "background.js must resolve provider for specified model");
-  assert.ok(bgSource.includes("getDefaultModel"), "background.js must resolve default model when model is omitted");
+  assert.ok(bgSource.includes("vertexPorts.has(tabId)"), "tabCoordinator must reject vertex tabs");
+  assert.ok(bgSource.includes("vertex_isolated"), "lease requests from vertex tabs must be rejected");
+
+  // Ensure siteModels.vertex does not contain duplicate gemini-3.5-flash-lite
+  const siteModelsMatch = bgSource.match(/const siteModels = ({[\s\S]*?});/);
+  assert.ok(siteModelsMatch, "siteModels must be defined");
+  const parsedModels = eval(`(${siteModelsMatch[1]})`);
+  assert.ok(!parsedModels.vertex.some((m) => m.id === "gemini-3.5-flash-lite"), "siteModels.vertex must not contain gemini-3.5-flash-lite to prevent duplicate default badges");
+
+  // Test getProviderForModel logic by evaluating extracted function
+  const funcMatch = bgSource.match(/function getProviderForModel\([\s\S]*?\n\}/);
+  const isVertexModelMatch = bgSource.match(/function isVertexModel\([\s\S]*?\n\}/);
+  assert.ok(funcMatch && isVertexModelMatch, "routing functions must exist");
+  const testScope = {};
+  const fnCode = `(function() {
+    ${siteModelsMatch[0]}
+    ${isVertexModelMatch[0]}
+    ${funcMatch[0]}
+    return { getProviderForModel, isVertexModel };
+  })()`;
+  const { getProviderForModel, isVertexModel } = eval(fnCode);
+
+  assert.equal(getProviderForModel("gemini-enterprise-vertex"), "vertex");
+  assert.equal(getProviderForModel("vertex/gemini-2.0"), "vertex");
+  assert.equal(getProviderForModel("vertex:gemini-pro"), "vertex");
+  assert.equal(getProviderForModel("gemini-3.5-flash-lite"), "aipass");
+  assert.equal(getProviderForModel("claude-sonnet-5@default"), "aipass");
+  assert.equal(getProviderForModel("auto"), "aipass");
+  assert.equal(getProviderForModel(null), "aipass");
+  assert.equal(getProviderForModel(""), "aipass");
 });
 
 test("ExtHub: POST /config updates defaultModel dynamically", async () => {
