@@ -174,7 +174,12 @@ async function refreshModels() {
   }
 }
 
-async function findChatTab() {
+async function findChatTab(forModel = null) {
+  const isVertex = Boolean(
+    forModel?.includes('vertex') ||
+    forModel?.includes('enterprise') ||
+    forModel === 'gemini-enterprise-vertex'
+  );
   const tabs = await chrome.tabs.query({
     url: [
       'https://*.aipass.net/*',
@@ -186,6 +191,10 @@ async function findChatTab() {
   if (!tabs.length) return null;
   const live = tabs.filter((t) => !t.discarded && t.status !== 'unloaded');
   const pool = live.length ? live : tabs;
+  if (isVertex) {
+    const vTab = pool.find((t) => t.url?.includes('vertexaisearch') || t.url?.includes('cloud.google'));
+    if (vTab) return vTab;
+  }
   // Prefer a tab sitting on a chat route or vertexai search.
   return pool.find((t) => t.url?.includes('/chat') || t.url?.includes('vertexaisearch')) ?? pool[0];
 }
@@ -221,18 +230,28 @@ async function ensureContentScript(tab) {
 }
 
 async function handleJob(job) {
-  // Prefer the leader tab from coordinator
-  const leaderTabId = tabCoordinator.getLeaderTabId();
-  let tab;
-  if (leaderTabId) {
-    try {
-      tab = await chrome.tabs.get(leaderTabId);
-    } catch {
-      tabCoordinator.removeTab(leaderTabId);
+  const isVertexJob = Boolean(
+    job.modelId?.includes('vertex') ||
+    job.modelId?.includes('enterprise') ||
+    job.modelId === 'gemini-enterprise-vertex'
+  );
+
+  let tab = null;
+  if (isVertexJob) {
+    tab = await findChatTab(job.modelId);
+  } else {
+    // Prefer the leader tab from coordinator
+    const leaderTabId = tabCoordinator.getLeaderTabId();
+    if (leaderTabId) {
+      try {
+        tab = await chrome.tabs.get(leaderTabId);
+      } catch {
+        tabCoordinator.removeTab(leaderTabId);
+        tab = await findChatTab();
+      }
+    } else {
       tab = await findChatTab();
     }
-  } else {
-    tab = await findChatTab();
   }
   if (!tab) {
     await post('/ext/error', { jobId: job.jobId, message: 'no de.aipass.net or Gemini Enterprise tab is open' });

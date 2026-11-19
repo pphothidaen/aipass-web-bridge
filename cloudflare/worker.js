@@ -16,7 +16,7 @@
 // TODO before production: see docs/cloudflare-deployment-assessment.md
 // (token auth is enforced here; tighten CORS, add rate limiting).
 
-const MODEL_FALLBACK = ["gemini-3.5-flash-lite", "gemini-3.1-flash-lite", "claude-sonnet-5@default"];
+const MODEL_FALLBACK = ["gemini-3.5-flash-lite", "gemini-3.1-flash-lite", "claude-sonnet-5@default", "gemini-enterprise-vertex"];
 
 // Models list loader (same-origin .data route the web UI itself uses).
 const MODELS_LOADER_URL = "/loaders/list-models.data?_routes=routes%2Floaders%2Flist-models";
@@ -318,6 +318,9 @@ export class ExtHub {
   // Resolve conversation: prefer reusing an active one from the session,
   // or mint a fresh temporary conversation.
   async resolveConversation(modelId) {
+    if (modelId === "gemini-enterprise-vertex" || modelId?.includes("vertex") || modelId?.includes("enterprise")) {
+      return "vertex-enterprise-session";
+    }
     if (this.conversationCache) return this.conversationCache;
     const list = await this.loadConversations();
     if (list.length && list[0]?.id) {

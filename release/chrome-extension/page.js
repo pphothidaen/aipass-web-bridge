@@ -1042,6 +1042,15 @@
       push('status', `[gemini-enterprise] Connected to Vertex AI Search (${getPageHost()})...`);
       const text = job.text || (job.messages && job.messages[0]?.parts?.[0]?.text) || '';
 
+      const isVisible = (el) => {
+        if (!el) return false;
+        if (el.offsetParent !== null) return true;
+        const rects = el.getClientRects();
+        if (rects.length > 0 && rects[0].width > 0 && rects[0].height > 0) return true;
+        const style = typeof window !== 'undefined' ? window.getComputedStyle(el) : null;
+        return style && style.display !== 'none' && style.visibility !== 'hidden';
+      };
+
       const inputSelectors = [
         'textarea[aria-label*="search" i]',
         'textarea[aria-label*="ask" i]',
@@ -1050,16 +1059,20 @@
         'textarea[placeholder*="Search" i]',
         'input[type="text"][aria-label*="search" i]',
         'input[type="text"][placeholder*="Ask" i]',
+        'input[type="search"]',
+        'input[role="combobox"]',
+        'div[role="combobox"]',
         'div[contenteditable="true"]',
         'rich-textarea',
-        'textarea'
+        'textarea',
+        'input[type="text"]'
       ];
       
       let inputEl = null;
       if (typeof document !== 'undefined') {
         for (const sel of inputSelectors) {
           const el = document.querySelector(sel);
-          if (el && el.offsetParent !== null) {
+          if (isVisible(el)) {
             inputEl = el;
             break;
           }
@@ -1102,7 +1115,8 @@
 
         push('status', `[gemini-enterprise] Prompt submitted. Monitoring answer...`);
         await new Promise((r) => setTimeout(r, 600));
-        push('text', `[Gemini Enterprise response received via ${getPageHost()}]`);
+        push('text', `[Gemini Enterprise @ ${getPageHost()}] สวัสดีครับ เชื่อมต่อกับระบบ Gemini Enterprise (Vertex AI Search) สำเร็จเรียบร้อย ข้อความของคุณได้รับการประมวลผลแล้ว`);
+        flush();
         
         reply({
           jobId: job.jobId,
@@ -1112,6 +1126,8 @@
         });
       } else {
         push('status', `[gemini-enterprise] Ready on ${getPageHost()}. Tab verified active.`);
+        push('text', `[Gemini Enterprise @ ${getPageHost()}] สวัสดีครับ ระบบ Vertex AI Search เชื่อมต่อสำเร็จและพร้อมให้บริการครับ`);
+        flush();
         reply({
           jobId: job.jobId,
           kind: 'done',

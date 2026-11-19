@@ -366,3 +366,19 @@ test("Chrome Extension: manifests and background.js support Gemini Enterprise (v
   const bgSource = fs.readFileSync(path.join(__dirname, "../release/chrome-extension/background.js"), "utf8");
   assert.ok(bgSource.includes("vertexaisearch.cloud.google") || bgSource.includes("cloud.google"));
 });
+
+test("ExtHub: resolveConversation bypasses conversation loader for Vertex / Gemini Enterprise models", async () => {
+  const hub = new ExtHub({}, {});
+  const convId = await hub.resolveConversation("gemini-enterprise-vertex");
+  assert.equal(convId, "vertex-enterprise-session");
+});
+
+test("Chrome Extension: background.js routes vertex jobs to vertexaisearch tab and page.js flushes chunks before done", () => {
+  const bgSource = fs.readFileSync(path.join(__dirname, "../packages/core/aipass-bridge/extension/background.js"), "utf8");
+  assert.ok(bgSource.includes("isVertexJob"));
+  assert.ok(bgSource.includes("findChatTab(job.modelId)"));
+
+  const pageSource = fs.readFileSync(path.join(__dirname, "../packages/core/aipass-bridge/extension/page.js"), "utf8");
+  assert.ok(pageSource.includes("flush();"));
+  assert.ok(pageSource.includes("[Gemini Enterprise @"));
+});

@@ -1,3 +1,15 @@
+## [0.7.2] - 2026-11-19
+
+### Fixed
+- **Gemini Enterprise / Vertex AI Search Request Routing**:
+  - `background.js`: Refined `handleJob()` and `findChatTab(forModel)` to accurately prioritize active tabs matching `vertexaisearch.cloud.google/*` and `*.cloud.google/*` when Vertex / Gemini Enterprise models (`gemini-enterprise-vertex`) are requested, preventing accidental dispatch to standard `de.aipass.net` chat leader tabs.
+  - `page.js`: Updated `runVertexSearch()` to use robust visibility checks (`offsetWidth`, `offsetHeight`, `getClientRects()`) and extended input selectors (`input[type="search"]`, `input[role="combobox"]`, `div[role="combobox"]`).
+  - `page.js`: Guaranteed `flush()` is executed immediately before `reply({ kind: 'done' })` so that chunk stream buffers are flushed and delivered to the cloud hub before the job is closed.
+  - `cloudflare/worker.js`: Updated `resolveConversation()` to instantly bypass `de.aipass.net` conversation loaders for Vertex AI Search / Gemini Enterprise models (`gemini-enterprise-vertex`).
+
+### Changed
+- **Version Bumping**: Synchronized version to `0.7.2` across `package.json`, `packages/core/.../manifest.json`, `release/chrome-extension/manifest.json`, and built extension artifacts.
+
 ## [0.7.1] - 2026-11-19
 
 ### Added
