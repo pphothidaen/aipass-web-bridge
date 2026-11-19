@@ -22,6 +22,14 @@
    - ผ่าน `npm test` 36/36 tests 100%
    - ผ่าน Adversarial Chaos Suites (RED-1 ถึง RED-5b) และ SSRF Security Suites 15/15 tests 100%
    - สร้าง built package และ source zip `v0.7.0` เรียบร้อย
+5. **การ Deploy Worker สู่ Cloudflare และการทดสอบ Live Endpoints**:
+   - ดำเนินการ deploy Cloudflare Worker สำเร็จสู่: `https://aipass-web-bridge.pansakorn.workers.dev`
+   - ตั้งค่า Secrets `BRIDGE_SECRET` และ `CLIENT_API_KEY` บน Worker เรียบร้อย
+   - ยืนยันการทำงานของ Endpoints:
+     - `curl -s https://aipass-web-bridge.pansakorn.workers.dev/registry` ตอบ 200 OK พร้อม model catalog ครบถ้วน
+     - `curl -s https://aipass-web-bridge.pansakorn.workers.dev/registry/models` ตอบ 200 OK (OpenAI models data array)
+     - `curl -s https://aipass-web-bridge.pansakorn.workers.dev/registry/status` ตอบ 200 OK
+     - รองรับ Gemini 3.1 Flash Lite ↔ Gemini 3.5 Flash Lite remapping และ Vertex AI Search (Gemini Enterprise) เรียบร้อย 100%
 
 1. **push สำเร็จหลังแก้ 2 อุปสรรค**
    - nested repo remote เดิม `niawjunior/aipass-bridge` → 403 สำหรับ account

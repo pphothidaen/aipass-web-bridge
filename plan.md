@@ -28,28 +28,15 @@
 | Gemini Enterprise & Vertex AI Search tab detection & DOM automation | `background.js` (`findChatTab`), `page.js` (`runVertexSearch`), manifests |
 | Extensions version bump & synchronization | `package.json` (0.7.0), `packages/core/.../manifest.json`, `release/.../manifest.json` |
 | Token-injected build artifact & zip | `release/aipass-bridge-chrome-built/` & `release/aipass-bridge-chrome-built.zip` |
+| Live Cloudflare Worker Deploy & Verification | `https://aipass-web-bridge.pansakorn.workers.dev/registry` (200 OK), secrets `BRIDGE_SECRET` & `CLIENT_API_KEY` active |
 
 ### ⏳ งานที่เหลือ (ตามลำดับที่แนะนำ)
 
-1. ~~แก้ RED-4~~ — **เสร็จ (v0.6.1)**: สาเหตุจริงไม่ใช่ Date.now collision แต่เป็น
-   `validateEpochEnvelope()` ใน `protocol-v2.mjs` ตรวจฟิลด์ `epoch` ซึ่ง wire messages
-   ใช้ `sessionEpoch` → envelope เก่าผ่าน fence ได้เสมอ แก้ให้ fence และ sequence
-   tracker ใช้ `sessionEpoch` (fallback `epoch` สำหรับ envelope ภายใน) — red-team 10/10
-2. ~~Sync release copy + zip~~ — **เสร็จ**: `release/chrome-extension` mirror แล้ว
-   (diff ว่าง), สร้าง `release/aipass-bridge-chrome-v0.6.1.zip` (8 files, syntax/manifest ตรวจแล้ว)
-3. ~~ตรวจสอบ Cloudflare secrets ก่อน deploy~~ — **เสร็จ**: `wrangler secret list`
-   ยืนยัน `BRIDGE_SECRET` + `CLIENT_API_KEY` ตั้งอยู่ · deploy ด้วย wrangler ในเครื่องสำเร็จ
-   (version `8fca3a44`) · post-deploy smoke: no-token → 401 envelope ถูกต้อง (ไม่ใช่ 503)
-4. ~~Commit งาน~~ — **เสร็จ**: nested repo `f665e72` → `a291387` (v0.3.0 brain/orchestrator
-   batch + extension bumps) และ commit repo หลัก `517df21` → 0.6.3
-5. ~~ย้าย default token ไป build-time substitution~~ — **เสร็จ (v0.6.2)**:
-   extension ใช้ `__BRIDGE_AUTH_TOKEN__` placeholder (background.js/popup.js/popup.html),
-   เพิ่ม `scripts/build-extension.py` ฉีดค่าจาก Doppler → env (fail hard ถ้าเหลือ placeholder),
-   `.gitleaks.toml` ตัด allowlist path ของ extension ออก, test กลับ assertion ให้ห้ามมี
-   literal token ใน extension source — **Kiwi zero-config หมดไป**: ติดตั้งจาก
-   `release/aipass-bridge-chrome-built/` (build ด้วย script) หรือกรอก token ใน popup
-6. **(ค้าง)** สร้าง built artifact/zip รุ่นใหม่จริง — ต้องมี `BRIDGE_AUTH_TOKEN`
-   จาก Doppler หรือ env ก่อน (source zip ล้วนจะไม่ทำงานเพราะ placeholder ไม่ถูกแทน)
+1. ~~สร้าง built artifact/zip รุ่นใหม่จริง~~ — **เสร็จสมบูรณ์**: สร้าง `release/aipass-bridge-chrome-built/` และ `release/aipass-bridge-chrome-built.zip` พร้อม token เรียบร้อย
+2. ~~Deploy Worker v0.7.0 พร้อม Registry & Gemini Enterprise~~ — **เสร็จสมบูรณ์**: Deployed สู่ Cloudflare Worker เรียบร้อย (`https://aipass-web-bridge.pansakorn.workers.dev`), ทดสอบ endpoint `/registry`, `/registry/models`, `/registry/status` ตอบ 200 OK ครบทุกชุด
+3. แนะนำผู้ใช้ให้ระบุ Endpoint URL ใน client (เช่น Chatbox AI หรือ OpenAI SDK):
+   - Registry URL: `https://aipass-web-bridge.pansakorn.workers.dev/registry`
+   - Base API URL: `https://aipass-web-bridge.pansakorn.workers.dev/v1`
 
 ## สถานะ CI/CD (เป้าหมาย definition of done — 2026-09-19)
 
