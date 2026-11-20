@@ -228,9 +228,10 @@ function renderPages(pages) {
 }
 
 function renderUsableModels(pages, srv, savedDefault = null) {
-  const container = $('usableList');
+  const flatContainer = $('usableList');
+  const accordionContainer = $('modelAccordion');
   const countEl = $('usableCount');
-  if (!container) return;
+  if (!flatContainer || !accordionContainer) return;
 
   const map = new Map();
 
@@ -282,19 +283,23 @@ function renderUsableModels(pages, srv, savedDefault = null) {
   }
 
   const allUsable = Array.from(map.values());
-  setText(countEl, `(${allUsable.length})`);
+  // Count reflects the models actually rendered, so it always matches the filter.
+  const filtered = allUsable.filter((m) => {
+    if (currentFilter === 'free') return m.free;
+    if (currentFilter === 'aipass') return m.source === 'aipass';
+    if (currentFilter === 'vertex') return m.source === 'vertex';
+    return true;
+  });
+  setText(countEl, `(${filtered.length})`);
 
-  let filtered = allUsable;
-  if (currentFilter === 'free') {
-    filtered = allUsable.filter((m) => m.free);
-  } else if (currentFilter === 'aipass') {
-    filtered = allUsable.filter((m) => m.source === 'aipass');
-  } else if (currentFilter === 'vertex') {
-    filtered = allUsable.filter((m) => m.source === 'vertex');
-  }
-
-  container.innerHTML = '';
-  if (!filtered.length) {
+  // Toggle visibility: use accordion view when there are models, keep flat fallback empty.
+  if (filtered.length) {
+    flatContainer.style.display = 'none';
+    accordionContainer.style.display = 'block';
+  } else {
+    flatContainer.style.display = 'block';
+    accordionContainer.style.display = 'none';
+    flatContainer.innerHTML = '';
     const empty = document.createElement('div');
     empty.style.color = 'var(--faint)';
     empty.style.fontSize = '11px';
@@ -302,7 +307,7 @@ function renderUsableModels(pages, srv, savedDefault = null) {
     empty.textContent = allUsable.length
       ? 'No models match current filter.'
       : 'Open a de.aipass.net or Vertex AI Search tab to load usable models.';
-    container.appendChild(empty);
+    flatContainer.appendChild(empty);
     return;
   }
 
@@ -310,60 +315,88 @@ function renderUsableModels(pages, srv, savedDefault = null) {
   const defNameEl = $('currentDefaultName');
   if (defNameEl) setText(defNameEl, defaultModel);
 
+  // Group filtered models by source for accordion headers.
+  const groups = new Map();
   for (const m of filtered) {
-    const row = document.createElement('div');
-    const isSelected = m.id === defaultModel || (m.source && `${m.source}:${m.id}` === defaultModel);
-    row.className = `usable-row ${isSelected ? 'is-default' : ''}`;
-    row.title = isSelected ? `Current default model: ${m.id}` : `Click to set ${m.id} as default model`;
+    if (!groups.has(m.source)) groups.set(m.source, []);
+    groups.get(m.source).push(m);
+  }
 
-    const titleWrap = document.createElement('div');
-    titleWrap.className = 'usable-id';
-    titleWrap.textContent = m.name || m.id;
-    row.appendChild(titleWrap);
+  const sourceLabels = {
+    aipass: 'AiPASS (de.aipass.net)',
+    vertex: 'Vertex AI (Gemini Enterprise)',
+  };
 
-    if (isSelected) {
-      const defBadge = document.createElement('span');
-      defBadge.className = 'badge-tag badge-default';
-      defBadge.textContent = '★ Default';
-      row.appendChild(defBadge);
+  accordionContainer.innerHTML = '';
+
+  for (const [source, models] of groups) {
+    const details = document.createElement('details');
+    details.className = 'model-item';
+
+    const summary = document.createElement('summary');
+    summary.className = 'accordion-header';
+    summary.innerHTML = `
+      <span>${sourceLabels[source] || source}</span>
+      <span class="accordion-count">${models.length} model${models.length !== 1 ? 's' : ''}</span>
+    `;
+    details.appendChild(summary);
+
+    const body = document.createElement('div');
+    body.className = 'details-body';
+
+    for (const m of models) {
+      const row = document.createElement('div');
+      const isSelected = m.id === defaultModel || (m.source && `${m.source}:${m.id}` === defaultModel);
+      row.className = `usable-row ${isSelected ? 'is-default' : ''}`;
+      row.title = isSelected ? `Current default model: ${m.id}` : `Click to set ${m.id} as default model`;
+
+      const titleWrap = document.createElement('div');
+      titleWrap.className = 'usable-id';
+      titleWrap.textContent = m.name || m.id;
+      row.appendChild(titleWrap);
+
+      if (isSelected) {
+        const defBadge = document.createElement('span');
+        defBadge.className = 'badge-tag badge-default';
+        defBadge.textContent = '★ Default';
+        row.appendChild(defBadge);
+      }
+
+      const costBadge = document.createElement('span');
+      costBadge.className = `badge-tag ${m.free ? 'badge-free' : 'badge-paid'}`;
+      costBadge.textContent = m.free ? 'Free' : (m.tier === 'enterprise' ? 'Enterprise' : 'Credit');
+
+      row.appendChild(costBadge);
+
+      row.addEventListener('click', async () => {
+        try {
+          if (defNameEl) setText(defNameEl, m.id);
+          await chrome.storage.local.set({ defaultModel: m.id });
+          if (srv) srv.defaultModel = m.id;
+
+          const res = await fetch(`${bridge}/config`, {
+            method: 'POST',
+            headers: await authHeaders(),
+            body: JSON.stringify({ defaultModel: m.id }),
+          }).catch(() => null);
+
+          if (!res || !res.ok) {
+            toast(`Default model: ${m.id} (saved locally)`);
+          } else {
+            toast(`Default model: ${m.id}`);
+          }
+          renderUsableModels(lastPages, srv, m.id);
+        } catch {
+          toast(`Default model: ${m.id}`);
+          renderUsableModels(lastPages, srv, m.id);
+        }
+      });
+
+      body.appendChild(row);
     }
 
-    const srcBadge = document.createElement('span');
-    srcBadge.className = 'badge-tag badge-src';
-    srcBadge.textContent = m.sourceName;
-
-    const costBadge = document.createElement('span');
-    costBadge.className = `badge-tag ${m.free ? 'badge-free' : 'badge-paid'}`;
-    costBadge.textContent = m.free ? 'Free' : (m.tier === 'enterprise' ? 'Enterprise' : 'Credit');
-
-    row.appendChild(srcBadge);
-    row.appendChild(costBadge);
-
-    row.addEventListener('click', async () => {
-      try {
-        if (defNameEl) setText(defNameEl, m.id);
-        await chrome.storage.local.set({ defaultModel: m.id });
-        if (srv) srv.defaultModel = m.id;
-
-        const res = await fetch(`${bridge}/config`, {
-          method: 'POST',
-          headers: await authHeaders(),
-          body: JSON.stringify({ defaultModel: m.id }),
-        }).catch(() => null);
-
-        if (!res || !res.ok) {
-          toast(`Default model: ${m.id} (saved locally)`);
-        } else {
-          toast(`Default model: ${m.id}`);
-        }
-        renderUsableModels(lastPages, srv, m.id);
-      } catch {
-        toast(`Default model: ${m.id}`);
-        renderUsableModels(lastPages, srv, m.id);
-      }
-    });
-
-    container.appendChild(row);
+    details.appendChild(body);
+    accordionContainer.appendChild(details);
   }
 }
 

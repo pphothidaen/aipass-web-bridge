@@ -1,5 +1,15 @@
 ## [0.7.4] - 2026-11-19
 
+## [0.7.5] - 2026-11-20
+
+### Added
+- **Extension credit attribution**: `manifest.json` description now uses `Acknowledgement: Inspired by https://github.com/niawjunior/aipass-bridge` with Thai translation `(แรงบัลดาลใจจาก https://github.com/niawjunior/aipass-bridge)` and Simplified Chinese translation `(灵感来源于 https://github.com/niawjunior/aipass-bridge)` — covering all three README languages (English / ไทย / 简体中文).
+- **Model accordion UX/UI**: Model list now renders as collapsible accordions grouped by provider (AiPASS / Vertex AI), each accordion header shows provider name and model count for easier scanning.
+- **Accurate model count**: The `(N)` count beside “Usable Models” now reflects the number of models actually rendered after filtering (All / Free / AiPASS / Vertex), so count always matches visible rows.
+
+### Changed
+- **Versioning**: Bumped version to `0.7.5` across `package.json`, `packages/core/aipass-bridge/extension/manifest.json`, `release/chrome-extension/manifest.json`, `release/aipass-bridge-chrome-built/manifest.json`.
+
 ### Added
 - **Multi-Provider Tab Isolation & Smart Routing**:
   - `background.js`: Strictly isolated tab management between `https://de.aipass.net` and `https://vertexaisearch.cloud.google/`.

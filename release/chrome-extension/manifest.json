@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "aipass bridge",
-  "version": "0.7.4",
-  "description": "Relays local OpenAI-compatible requests through an open de.aipass.net or Gemini Enterprise tab.",
+  "version": "0.7.5",
+  "description": "Relays local OpenAI-compatible requests through an open de.aipass.net or Gemini Enterprise tab. Acknowledgement: Inspired by https://github.com/niawjunior/aipass-bridge (แรงบัลดาลใจจาก https://github.com/niawjunior/aipass-bridge) (灵感来源于 https://github.com/niawjunior/aipass-bridge)",
   "permissions": [
     "storage",
     "alarms",
