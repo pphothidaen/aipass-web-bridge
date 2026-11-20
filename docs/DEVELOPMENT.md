@@ -151,3 +151,4 @@ curl http://localhost:8787/health
 | Secrets missing | Create `cloudflare/.dev.vars` with `BRIDGE_SECRET` and `CLIENT_API_KEY` |
 | Extension won't connect to local | Make sure `http://localhost:8787` is in `host_permissions` |
 | Port 8787 in use | Change port: `wrangler dev --port 8788` |
+| Gemini Enterprise / Vertex AI Search tab offline | Open `https://vertexaisearch.cloud.google/` and sign in; bridge fail-closes for the selected provider instead of silently cross-provider falling back |

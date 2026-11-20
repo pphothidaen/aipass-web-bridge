@@ -13,6 +13,15 @@ point at either hub without code changes.
 - **Fail fast, never fabricate**: missing extension → `503 extension
   disconnected`; unverified model → `422 model_unverified`; saturated queue →
   `429 queue_full`.
+- **Provider-aware upstream routing**: AiPASS (`https://de.aipass.net`) and
+  Gemini Enterprise / Vertex AI Search (`https://vertexaisearch.cloud.google/`).
+  Gemini Enterprise model IDs such as `gemini-enterprise-vertex` — or model IDs
+  prefixed with `vertex/` — dispatch to the Gemini Enterprise tab; AiPASS models
+  dispatch to the AiPASS tab. Fail closed and do not silently cross-provider
+  fallback when the selected provider is unavailable.
+- **Conversation handling**: Gemini Enterprise models use a dedicated temporary
+  conversation (`vertex-enterprise-session`); AiPASS models use the conversation
+  cache/create flow.
 - **OpenAI-compatible error envelope** on all errors:
   `{"error":{"message":string,"type":string,"code":string}}`.
 
@@ -42,7 +51,8 @@ compatibility.
 
 ### `POST /v1/chat/completions`
 OpenAI request/response. Extras:
-- Request extensions: `model` (may be prefixed `aipass/`), `attachments`
+- Request extensions: `model` (may be prefixed `aipass/` or `vertex/`; Gemini
+  Enterprise uses `gemini-enterprise-vertex`), `attachments`
   (`[{type:"image"|"file", data:"data:...", filename?}]`), media options
   (`aspect_ratio`, `image_style`, `video_options`), `thinking_level`.
 - `stream:true` → SSE chunks `chat.completion.chunk` … `data: [DONE]`.

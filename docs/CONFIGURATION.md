@@ -8,11 +8,28 @@ so they stay on one policy.
 ```
 Chrome Extension ──SSE──▶ Cloudflare Worker (Durable Object)
                                 │
-                                └──▶ de.aipass.net (upstream LLM)
+                                ├──▶ de.aipass.net (AiPASS upstream LLM)
+                                └──▶ https://vertexaisearch.cloud.google/
+                                    (Gemini Enterprise / Vertex AI Search upstream LLM)
 ```
 
 **No local development server.** Everything runs on Cloudflare in production.
 Develop → test → deploy → verify on production Worker.
+
+## Provider routing and Gemini Enterprise
+
+- **AiPASS**: provider identifier `aipass`; live tab at
+  `https://de.aipass.net/chat`; model IDs such as `gemini-3.5-flash-lite` and
+  `gemini-3.1-flash-lite` dispatch to the AiPASS session.
+- **Gemini Enterprise / Vertex AI Search**: provider identifier `vertex`; live tab
+  at `https://vertexaisearch.cloud.google/`; Gemini Enterprise model ID is
+  `gemini-enterprise-vertex`.
+- Default model can be changed through the bridge client API (`POST /config`);
+  examples include `gemini-enterprise-vertex` for Gemini Enterprise and
+  `aipass/default` for AiPASS.
+
+Routing is provider-aware and fail-closed; it does not silently cross-provider
+fallback when the selected provider is unavailable.
 
 ## Storage precedence (highest wins)
 
