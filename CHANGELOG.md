@@ -1,14 +1,14 @@
-## [0.7.4] - 2026-11-19
-
 ## [0.7.5] - 2026-11-20
 
 ### Added
 - **Extension credit attribution**: `manifest.json` description now uses `Acknowledgement: Inspired by https://github.com/niawjunior/aipass-bridge` with Thai translation `(แรงบัลดาลใจจาก https://github.com/niawjunior/aipass-bridge)` and Simplified Chinese translation `(灵感来源于 https://github.com/niawjunior/aipass-bridge)` — covering all three README languages (English / ไทย / 简体中文).
 - **Model accordion UX/UI**: Model list now renders as collapsible accordions grouped by provider (AiPASS / Vertex AI), each accordion header shows provider name and model count for easier scanning.
 - **Accurate model count**: The `(N)` count beside “Usable Models” now reflects the number of models actually rendered after filtering (All / Free / AiPASS / Vertex), so count always matches visible rows.
+- **Visual Preview Documentation**: Added high-resolution Chrome extension popup screenshot preview (`docs/assets/chrome-extension-popup.png`) with detailed section breakdown in `README.md` across English, Thai, and Simplified Chinese.
 
 ### Changed
 - **Versioning**: Bumped version to `0.7.5` across `package.json`, `packages/core/aipass-bridge/extension/manifest.json`, `release/chrome-extension/manifest.json`, `release/aipass-bridge-chrome-built/manifest.json`.
+- **Popup UI Streamlining**: Removed redundant stats block (`Active / Models / Chat`) from popup UI to keep the popup focused on connection health, usable models, and credit balances.
 
 ### Added
 - **Multi-Provider Tab Isolation & Smart Routing**:

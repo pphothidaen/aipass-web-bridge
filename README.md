@@ -18,7 +18,7 @@
 
 ## 🌐 English
 
-**AIPASS Web Bridge (v0.7.4)** is a production-grade Edge AI Gateway that bridges live, authenticated [de.aipass.net](https://de.aipass.net) and Gemini Enterprise / Vertex AI Search browser sessions into an **OpenAI-Compatible REST API** (with real SSE streaming) and a **Remote MCP Server**, powered by **Cloudflare Durable Objects** — with zero upstream credentials ever touching the server.
+**AIPASS Web Bridge (v0.7.5)** is a production-grade Edge AI Gateway that bridges live, authenticated [de.aipass.net](https://de.aipass.net) and Gemini Enterprise / Vertex AI Search browser sessions into an **OpenAI-Compatible REST API** (with real SSE streaming) and a **Remote MCP Server**, powered by **Cloudflare Durable Objects** — with zero upstream credentials ever touching the server.
 
 It enables autonomous AI clients and developer tools — **Hermes Agent**, **Secretary**, the bundled **VS Code extension**, any OpenAI SDK, or any MCP client — to call 100+ AI models (chat, image, video, music, research) through the selected logged-in provider session (AiPASS or Gemini Enterprise / Vertex AI Search), with strict fail-closed behavior and zero mocks.
 
@@ -65,6 +65,17 @@ npx wrangler secret put CLIENT_API_KEY   # API / MCP clients
 ```
 
 #### 2. Install the Chrome Extension
+
+#### 📸 Visual Preview — Chrome Extension Popup
+
+![Chrome Extension Popup — Site Connections, Usable Models, Credits](docs/assets/chrome-extension-popup.png)
+
+> **What the popup shows**:
+> - **Hero**: Connection status (Connected / Offline / Bridge error)
+> - **Site Connections**: Status of de.aipass.net and Vertex AI Search (Online / Offline)
+> - **Usable Models**: List of usable models grouped as accordions by provider (AiPASS / Vertex AI)
+> - **Credits**: Credit balance bar
+> - **Advanced**: Bridge URL and Bridge token settings
 
 1. Open `chrome://extensions/` in Google Chrome.
 2. Enable **Developer mode** (top-right toggle).
@@ -123,7 +134,7 @@ curl -s https://aipass-web-bridge.taijustarrett417.workers.dev/status | jq .
 
 ## 🌐 ภาษาไทย
 
-**AIPASS Web Bridge (v0.7.4)** คือ Edge AI Gateway ระดับโปรดักชัน ที่ทำหน้าที่เป็นสะพานเชื่อมต่อเซสชันเว็บจริงของ [de.aipass.net](https://de.aipass.net) และ [Gemini Enterprise / Vertex AI Search](https://vertexaisearch.cloud.google/) เข้าสู่ **OpenAI-Compatible REST API** (รองรับ Real SSE Streaming) และ **Remote MCP Server** ผ่านขุมพลัง **Cloudflare Durable Objects** — โดยเซิร์ฟเวอร์ไม่เคยถือ credential ของผู้ให้บริการเลยแม้แต่ครั้งเดียว
+**AIPASS Web Bridge (v0.7.5)** คือ Edge AI Gateway ระดับโปรดักชัน ที่ทำหน้าที่เป็นสะพานเชื่อมต่อเซสชันเว็บจริงของ [de.aipass.net](https://de.aipass.net) และ [Gemini Enterprise / Vertex AI Search](https://vertexaisearch.cloud.google/) เข้าสู่ **OpenAI-Compatible REST API** (รองรับ Real SSE Streaming) และ **Remote MCP Server** ผ่านขุมพลัง **Cloudflare Durable Objects** — โดยเซิร์ฟเวอร์ไม่เคยถือ credential ของผู้ให้บริการเลยแม้แต่ครั้งเดียว
 
 ระบบนี้ออกแบบมาเพื่อให้ AI Agent และเครื่องมือนักพัฒนา เช่น **Hermes Agent**, **Secretary**, **VS Code Extension** ที่แถมมา, OpenAI SDK หรือ MCP client ใดก็ตาม เรียกใช้โมเดล AI กว่า 100 ตัว (แชท, ภาพ, วิดีโอ, เพลง, research) ผ่านเซสชันผู้ใช้ที่ล็อกอินแล้วในเบราว์เซอร์ (AiPASS หรือ Gemini Enterprise / Vertex AI Search) ด้วยสถาปัตยกรรม Fail-Closed เคร่งครัดและไม่มีคำตอบหลอก (Zero Mocks)
 
@@ -160,6 +171,17 @@ npx wrangler secret put CLIENT_API_KEY   # API / MCP clients
 
 #### 2. ติดตั้ง Chrome Extension
 
+#### 📸 ตัวอย่างหน้าจอ Popup (Visual Preview)
+
+![Chrome Extension Popup — Site Connections, Usable Models, Credits](docs/assets/chrome-extension-popup.png)
+
+> **สิ่งที่แสดงใน popup**:
+> - **Hero**: สถานะการเชื่อมต่อ (Connected / Offline / Bridge error)
+> - **Site Connections**: สถานะ de.aipass.net และ Vertex AI Search (Online / Offline)
+> - **Usable Models**: รายชื่อโมเดลที่ใช้งานได้ จัดเป็น accordion ตาม provider (AiPASS / Vertex AI)
+> - **Credits**: แถบแสดงเครดิตที่เหลืออยู่
+> - **Advanced**: ตั้งค่า Bridge URL และ Bridge token
+
 1. เปิด `chrome://extensions/` ใน Google Chrome
 2. เปิดสวิตช์ **Developer mode (โหมดนักพัฒนา)** ที่มุมขวาบน
 3. คลิก **Load unpacked** แล้วเลือกโฟลเดอร์ `packages/core/aipass-bridge/extension` (หรือ build artifact จาก `python scripts/build-extension.py --output release/aipass-bridge-chrome-built --zip`)
@@ -176,7 +198,7 @@ curl -s https://aipass-web-bridge.taijustarrett417.workers.dev/status | jq .
 
 ## 🌐 简体中文
 
-**AIPASS Web Bridge (v0.7.4)** 是一个生产级 Edge AI 网关。它基于 **Cloudflare Durable Objects** 构建，将真实的、已认证的 [de.aipass.net](https://de.aipass.net) 以及 [Gemini Enterprise / Vertex AI Search](https://vertexaisearch.cloud.google/) 网页会话桥接为 **兼容 OpenAI 的 REST API**（支持真正的 SSE 流式传输）以及 **远程 MCP 服务器** — 服务器端从不持有任何上游凭证。
+**AIPASS Web Bridge (v0.7.5)** 是一个生产级 Edge AI 网关。它基于 **Cloudflare Durable Objects** 构建，将真实的、已认证的 [de.aipass.net](https://de.aipass.net) 以及 [Gemini Enterprise / Vertex AI Search](https://vertexaisearch.cloud.google/) 网页会话桥接为 **兼容 OpenAI 的 REST API**（支持真正的 SSE 流式传输）以及 **远程 MCP 服务器** — 服务器端从不持有任何上游凭证。
 
 它支持外部 AI Agent 与开发工具（如 **Hermes Agent**、**Secretary**、内置的 **VS Code 扩展**、任意 OpenAI SDK 或 MCP 客户端）通过已登录的提供方会话（AiPASS 或 Gemini Enterprise / Vertex AI Search）调用 100+ 个 AI 模型（聊天、图像、视频、音乐、研究），并严格遵循快速失败（Fail-Closed）原则，杜绝任何伪造数据。
 
@@ -209,6 +231,17 @@ npx wrangler secret put CLIENT_API_KEY
 ```
 
 #### 2. 安装 Chrome 扩展
+
+#### 📸 Chrome 扩展程序弹窗截图 (Visual Preview)
+
+![Chrome Extension Popup — Site Connections, Usable Models, Credits](docs/assets/chrome-extension-popup.png)
+
+> **弹窗显示内容**:
+> - **Hero**: 连接状态 (Connected / Offline / Bridge error)
+> - **Site Connections**: de.aipass.net 和 Vertex AI Search 状态 (Online / Offline)
+> - **Usable Models**: 按提供商分组的可用模型列表 (accordion: AiPASS / Vertex AI)
+> - **Credits**: 剩余额度进度条
+> - **Advanced**: Bridge URL 和 Bridge token 设置
 
 1. 在 Chrome 中打开 `chrome://extensions/`。
 2. 开启右上角 **开发者模式**。

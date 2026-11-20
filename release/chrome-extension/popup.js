@@ -432,10 +432,6 @@ async function render() {
     act.classList.remove('show');
   }
 
-  setText($('sJobs'), srv ? srv.activeJobs ?? 0 : '–');
-  setText($('sModels'), srv ? (srv.models?.length ?? 0) : '–');
-  setText($('sChat'), srv ? shortId(srv.conversation) : '–');
-
   if (srv) renderModels(srv.models ?? [], srv.defaultModel);
   renderCredits(srv);
 
